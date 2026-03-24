@@ -157,10 +157,13 @@ function switchPage(pageId) {
 }
 
 /* ─────────────────────────────────────────
-   TRANSACTION TYPE CHANGE
+   TRANSACTION TYPE SELECTION CHANGE
 ───────────────────────────────────────── */
-function onTranTypeChange(val) {
-  switchPage(val);
+function onTranTypeSelectionChange() {
+  const sel = msGetValues('trantype');
+  // Use first selected type's config, or default to invoices when none selected
+  const pageId = sel.length > 0 ? sel[0] : 'invoices';
+  switchPage(pageId);
 }
 
 /* ─────────────────────────────────────────
@@ -173,23 +176,35 @@ async function doSearch() {
   const origLabel = cfg.searchLabel;
   document.getElementById('btn-search-label').textContent = 'Searching…';
 
-  const params = new URLSearchParams({
-    action:     cfg.action,
-    dateFrom:   document.getElementById('f-dateFrom').value,
-    dateTo:     document.getElementById('f-dateTo').value,
-    customer:   msGetValues('customer').join(','),
-    subsidiary: msGetValues('subsidiary').join(','),
-    status:     document.getElementById('f-status').value
-  });
-
+  // Determine which transaction types to search
+  const selTypes = msGetValues('trantype');
+  const typesToSearch = selTypes.length > 0 ? selTypes : Object.keys(PAGE_CONFIG);
 
   try {
-    const resp = await fetch(BASE_URL + '&' + params.toString());
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const data = await resp.json();
-    if (!data.success) throw new Error(data.error || 'Unknown error');
+    let allInvoices = [];
 
-    invoices = data.invoices || [];
+    for (const typeKey of typesToSearch) {
+      const typeCfg = PAGE_CONFIG[typeKey];
+      if (!typeCfg) continue;
+
+      const params = new URLSearchParams({
+        action:     typeCfg.action,
+        dateFrom:   document.getElementById('f-dateFrom').value,
+        dateTo:     document.getElementById('f-dateTo').value,
+        customer:   msGetValues('customer').join(','),
+        subsidiary: msGetValues('subsidiary').join(','),
+        status:     document.getElementById('f-status').value
+      });
+
+      const resp = await fetch(BASE_URL + '&' + params.toString());
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.error || 'Unknown error');
+
+      allInvoices = allInvoices.concat(data.invoices || []);
+    }
+
+    invoices = allInvoices;
     renderTable(invoices);
     setStats(invoices.length, 0, 0);
 
@@ -211,6 +226,7 @@ async function doSearch() {
    MULTISELECT WIDGET
 ───────────────────────────────────────── */
 const MS_STATE = {
+  trantype:   { options: [], selected: new Set(), open: false },
   customer:   { options: [], selected: new Set(), open: false },
   subsidiary: { options: [], selected: new Set(), open: false }
 };
@@ -271,7 +287,7 @@ function msRenderList(key, options) {
     return \`<div class="ms-option\${isSel ? ' selected' : ''}" onclick="msToggleOption('\${key}','\${o.id}',this)">
       <input type="checkbox" \${isSel ? 'checked' : ''} onclick="event.stopPropagation();msToggleOption('\${key}','\${o.id}',this.closest('.ms-option'))"/>
       <span class="ms-option-label">\${escHtml(o.label)}</span>
-      <span class="ms-option-sub">#\${o.id}</span>
+      \${key === 'trantype' ? '' : \`<span class="ms-option-sub">#\${o.id}</span>\`}
     </div>\`;
   }).join('');
 }
@@ -289,12 +305,14 @@ function msToggleOption(key, id, el) {
     el.querySelector('input').checked = true;
   }
   msUpdateTrigger(key);
+  if (key === 'trantype') onTranTypeSelectionChange();
 }
 
 function msClear(key) {
   MS_STATE[key].selected.clear();
   msRenderList(key, MS_STATE[key].options);
   msUpdateTrigger(key);
+  if (key === 'trantype') onTranTypeSelectionChange();
 }
 
 function msUpdateTrigger(key) {
@@ -314,7 +332,7 @@ function msUpdateTrigger(key) {
     const ph = document.createElement('span');
     ph.className = 'ms-placeholder';
     ph.id = \`ms-\${key}-placeholder\`;
-    ph.textContent = key === 'customer' ? 'All Customers' : 'All Subsidiaries';
+    ph.textContent = key === 'customer' ? 'All Customers' : key === 'trantype' ? 'All Transaction Types' : 'All Subsidiaries';
     trigger.insertBefore(ph, arrow);
     return;
   }
@@ -346,6 +364,7 @@ function msRemovePill(key, sid) {
   MS_STATE[key].selected.delete(sid);
   msRenderList(key, MS_STATE[key].options);
   msUpdateTrigger(key);
+  if (key === 'trantype') onTranTypeSelectionChange();
 }
 
 function msGetValues(key) {
@@ -364,6 +383,13 @@ function msGetValues(key) {
   const ago90 = new Date(today); ago90.setDate(ago90.getDate() - 90);
   document.getElementById('f-dateTo').value   = fmtDate(today);
   document.getElementById('f-dateFrom').value = fmtDate(ago90);
+
+  // Populate transaction type multiselect
+  msSetOptions('trantype', [
+    { id: 'invoices',      label: 'Invoices' },
+    { id: 'creditmemos',   label: 'Credit Memos' },
+    { id: 'invoicegroups', label: 'Invoice Groups' }
+  ]);
 
   // Populate multiselect dropdowns from server-embedded data
   msSetOptions('customer',   __LOOKUPS__.customers    || []);

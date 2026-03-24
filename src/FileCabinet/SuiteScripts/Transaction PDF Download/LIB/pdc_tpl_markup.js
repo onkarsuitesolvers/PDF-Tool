@@ -27,13 +27,27 @@ define([], () => {
 
   <!-- Filter bar -->
   <div class="filter-bar">
-    <div class="filter-group">
+    <div class="filter-group" id="fg-trantype">
       <div class="filter-label">Transaction Type</div>
-      <select class="filter-select" id="f-trantype" onchange="onTranTypeChange(this.value)">
-        <option value="invoices">Invoices</option>
-        <option value="creditmemos">Credit Memos</option>
-        <option value="invoicegroups">Invoice Groups</option>
-      </select>
+      <div class="ms-wrap" id="ms-trantype-wrap">
+        <div class="ms-trigger" id="ms-trantype-trigger" onclick="msToggle('trantype')">
+          <span class="ms-placeholder" id="ms-trantype-placeholder">All Transaction Types</span>
+          <svg class="ms-arrow" width="10" height="7" fill="none" viewBox="0 0 10 7"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </div>
+        <div class="ms-dropdown" id="ms-trantype-dropdown">
+          <div class="ms-search-wrap">
+            <div class="ms-search-box">
+              <svg class="ms-search-icon" width="13" height="13" fill="none" viewBox="0 0 13 13"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M10 10l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <input class="ms-search" id="ms-trantype-search" placeholder="Search types…" oninput="msFilter('trantype')" onclick="event.stopPropagation()"/>
+            </div>
+          </div>
+          <div class="ms-list" id="ms-trantype-list"></div>
+          <div class="ms-footer">
+            <span class="ms-footer-count" id="ms-trantype-count">0 selected</span>
+            <span class="ms-footer-clear" onclick="msClear('trantype')">Clear all</span>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="filter-group">
       <div class="filter-label">Date From</div>
