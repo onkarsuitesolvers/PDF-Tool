@@ -13,44 +13,6 @@ define([], () => {
   const getMarkup = () => `
 
 <!-- ════════════════════════════════════════
-     SIDEBAR
-════════════════════════════════════════ -->
-<aside class="sidebar">
-  <div class="sidebar-logo">
-    <div class="brand">
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <rect width="22" height="22" rx="6" fill="#2E9E9E" opacity="0.2"/>
-        <path d="M5 7h12M5 11h12M5 15h8" stroke="#4DC8C8" stroke-width="1.8" stroke-linecap="round"/>
-        <circle cx="17" cy="15" r="3" fill="#E8923A"/>
-        <path d="M16 15l.8.8L18.5 13.5" stroke="#0D4A4A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      Print & Download PDF Center
-    </div>
-    <div class="sub">NetSuite Transactions</div>
-  </div>
-
-  <div class="nav-section">
-    <div class="nav-label">Documents</div>
-    <div class="nav-item active" id="nav-invoices" onclick="switchPage('invoices')">
-      <svg width="15" height="15" fill="none" viewBox="0 0 15 15"><path d="M3 2h9l2 2v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.4"/><path d="M5 7h5M5 10h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-      Invoices
-      <div class="dot" id="dot-invoices"></div>
-    </div>
-    <div class="nav-item" id="nav-creditmemos" onclick="switchPage('creditmemos')">
-      <svg width="15" height="15" fill="none" viewBox="0 0 15 15"><path d="M2 4h11v8a1 1 0 01-1 1H3a1 1 0 01-1-1V4z" stroke="currentColor" stroke-width="1.4"/><path d="M5 4V2.5A1.5 1.5 0 016.5 1h2A1.5 1.5 0 0110 2.5V4" stroke="currentColor" stroke-width="1.4"/></svg>
-      Credit Memos
-      <div class="dot" id="dot-creditmemos" style="display:none"></div>
-    </div>
-    <div class="nav-item" id="nav-invoicegroups" onclick="switchPage('invoicegroups')">
-      <svg width="15" height="15" fill="none" viewBox="0 0 15 15"><rect x="1" y="1" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4 5h7M4 8h7M4 11h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-      Invoice Groups
-      <div class="dot" id="dot-invoicegroups" style="display:none"></div>
-    </div>
-  </div>
-
-</aside>
-
-<!-- ════════════════════════════════════════
      MAIN CONTENT
 ════════════════════════════════════════ -->
 <main class="main">
@@ -58,7 +20,7 @@ define([], () => {
   <!-- Page header -->
   <div class="page-header">
     <div>
-      <div class="page-title" id="page-title"><em>Invoices</div>
+      <div class="page-title" id="page-title"><em>Invoices</em></div>
       <div class="page-sub" id="page-sub">Search, preview and download Invoice PDFs by customer or date range</div>
     </div>
   </div>
@@ -71,6 +33,14 @@ define([], () => {
 
   <!-- Filter bar -->
   <div class="filter-bar">
+    <div class="filter-group">
+      <div class="filter-label">Transaction Type</div>
+      <select class="filter-select" id="f-trantype" onchange="onTranTypeChange(this.value)">
+        <option value="invoices">Invoices</option>
+        <option value="creditmemos">Credit Memos</option>
+        <option value="invoicegroups">Invoice Groups</option>
+      </select>
+    </div>
     <div class="filter-group">
       <div class="filter-label">Date From</div>
       <input class="filter-input" type="date" id="f-dateFrom"/>

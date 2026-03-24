@@ -120,14 +120,6 @@ function switchPage(pageId) {
   currentPage = pageId;
   const cfg = PAGE_CONFIG[pageId];
 
-  // Nav active state
-  ['invoices','creditmemos','invoicegroups'].forEach(id => {
-    const el = document.getElementById('nav-' + id);
-    const dot = document.getElementById('dot-' + id);
-    if (el)  el.classList.toggle('active', id === pageId);
-    if (dot) dot.style.display = id === pageId ? 'block' : 'none';
-  });
-
   // Title / subtitle
   document.getElementById('page-title').innerHTML = cfg.title;
   document.getElementById('page-sub').textContent  = cfg.sub;
@@ -162,7 +154,13 @@ function switchPage(pageId) {
   document.getElementById('empty-state').classList.remove('show');
   document.getElementById('btn-dl-selected').disabled = true;
   setStats(0, 0, 0);
+}
 
+/* ─────────────────────────────────────────
+   TRANSACTION TYPE CHANGE
+───────────────────────────────────────── */
+function onTranTypeChange(val) {
+  switchPage(val);
 }
 
 /* ─────────────────────────────────────────

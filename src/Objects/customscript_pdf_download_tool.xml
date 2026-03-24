@@ -7,6 +7,20 @@
   <notifyowner>T</notifyowner>
   <notifyuser>F</notifyuser>
   <scriptfile>[/SuiteScripts/Transaction PDF Download/SL/pdc_SL_main.js]</scriptfile>
+  <scriptcustomfields>
+    <scriptcustomfield scriptid="custscript_pdc_invgrp_tpl_id">
+      <accesslevel>2</accesslevel>
+      <applyformatting>F</applyformatting>
+      <defaultvalue>462</defaultvalue>
+      <description>Internal ID of the Advanced PDF/HTML template used to render Invoice Group PDFs.</description>
+      <displaytype>NORMAL</displaytype>
+      <fieldtype>INTEGER</fieldtype>
+      <isformula>F</isformula>
+      <ismandatory>F</ismandatory>
+      <label>Invoice Group PDF Template ID</label>
+      <storevalue>T</storevalue>
+    </scriptcustomfield>
+  </scriptcustomfields>
   <scriptdeployments>
     <scriptdeployment scriptid="customdeploy_pdf_download_tool">
       <allemployees>T</allemployees>

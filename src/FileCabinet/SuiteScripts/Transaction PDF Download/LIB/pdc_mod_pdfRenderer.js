@@ -11,8 +11,8 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 define(
-  ['N/render', 'N/record'],
-  (render, record) => {
+  ['N/render', 'N/record', 'N/runtime'],
+  (render, record, runtime) => {
 
   /**
    * Serve a single PDF for a transaction or invoice group.
@@ -27,11 +27,12 @@ define(
 
     if (type === 'invoicegroups') {
       // Invoice Groups are not standard transactions — render.transaction()
-      // does not support them. Use the Advanced PDF/HTML template (ID 462)
-      // with a TemplateRenderer.
+      // does not support them. Use the Advanced PDF/HTML template with a TemplateRenderer.
+      const script     = runtime.getCurrentScript();
+      const templateId = script.getParameter({ name: 'custscript_pdc_invgrp_tpl_id' }) || 462;
       const groupRecord = record.load({ type: 'invoicegroup', id: id });
       const renderer    = render.create();
-      renderer.setTemplateById(462);
+      renderer.setTemplateById(templateId);
       renderer.addRecord({ templateName: 'record', record: groupRecord });
       pdfFile = renderer.renderAsPdf();
     } else {
