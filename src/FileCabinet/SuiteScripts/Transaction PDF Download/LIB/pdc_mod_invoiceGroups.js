@@ -23,7 +23,8 @@ define(
     const { conditions, params } = qh.buildCommonFilters(p, {
       dateCol:       'InvoiceGroup.trandate',
       customerCol:   'InvoiceGroup.customer',
-      subsidiaryCol: null   // InvoiceGroup has no subsidiary column
+      subsidiaryCol: null,   // InvoiceGroup has no subsidiary column
+      tranIdCol:     'InvoiceGroup.invoicegroupnumber'
     });
     if (conditions.length === 0) conditions.push('1=1');
 

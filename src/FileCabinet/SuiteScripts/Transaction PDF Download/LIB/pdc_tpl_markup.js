@@ -57,6 +57,10 @@ define([], () => {
       <input class="filter-input" type="date" id="f-dateTo"/>
     </div>
     <div class="filter-group">
+      <div class="filter-label">Tran ID</div>
+      <input class="filter-input" type="text" id="f-tranId" placeholder="e.g. INV-10482"/>
+    </div>
+    <div class="filter-group">
       <div class="filter-label">Customer</div>
       <div class="ms-wrap" id="ms-customer-wrap">
         <div class="ms-trigger" id="ms-customer-trigger" onclick="msToggle('customer')">
@@ -122,7 +126,7 @@ define([], () => {
     <div class="filter-divider"></div>
     <button class="btn btn-primary" onclick="doSearch()" id="btn-search" style="align-self:flex-end">
       <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M10 10l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-      <span id="btn-search-label">Search Invoices</span>
+      <span id="btn-search-label">Search Transactions</span>
     </button>
   </div>
 
@@ -171,7 +175,7 @@ define([], () => {
     <div class="table-head">
       <div>
         <div class="table-title" id="table-title">Search Results</div>
-        <div class="table-meta" id="table-meta">0 records</div>
+        <div class="table-meta" id="table-meta">0 transactions</div>
       </div>
       <div class="table-actions">
         <button class="btn btn-outline btn-sm" onclick="toggleSelectAll()">Select All</button>
@@ -186,6 +190,7 @@ define([], () => {
         <thead id="inv-thead">
           <tr>
             <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
+            <th>Type</th>
             <th>Tran ID</th>
             <th>Customer</th>
             <th>Date</th>
