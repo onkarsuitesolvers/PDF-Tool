@@ -359,23 +359,6 @@ function msGetValues(key) {
 (function init() {
   fsSAPIEnabled = ('showDirectoryPicker' in window);
 
-  if (!fsSAPIEnabled) {
-    document.getElementById('fsapi-warn').classList.add('show');
-    document.getElementById('zip-warn').classList.add('show');
-    document.getElementById('folder-section-label').textContent = 'Download Mode';
-    document.getElementById('fp-title').textContent = 'ZIP Download (browser default folder)';
-    document.getElementById('fp-hint').textContent  = 'PDFs will be bundled into a ZIP file';
-    document.getElementById('folder-tip').style.display = 'none';
-    document.getElementById('chip-mode').querySelector('svg').parentNode
-      .querySelector('svg').nextSibling.textContent = ' ZIP Bundle';
-    // Auto-enable start in ZIP mode
-    dirHandle = { name: 'ZIP Download' };
-    document.getElementById('btn-start').disabled = false;
-    document.getElementById('folder-path').textContent = 'PDFs will be bundled as invoices.zip';
-    document.getElementById('folder-path').classList.add('chosen');
-    document.getElementById('quick-folders').style.display = 'none';
-  }
-
   // Default date range: last 90 days
   const today = new Date();
   const ago90 = new Date(today); ago90.setDate(ago90.getDate() - 90);
@@ -676,8 +659,8 @@ function handleOverlayClick(e) {
 
 function resetAndClose() {
   cancelled = false; paused = false; downloading = false;
-  dirHandle = fsSAPIEnabled ? null : { name: 'ZIP Download' };
-  if (fsSAPIEnabled) {
+  dirHandle = null;
+  {
     document.getElementById('folder-path').textContent = 'No folder chosen — click Browse to select';
     document.getElementById('folder-path').classList.remove('chosen');
     document.getElementById('folder-picker').classList.remove('selected');
@@ -704,12 +687,6 @@ function goToStep(n) {
    FOLDER PICKER  →  File System Access API
 ───────────────────────────────────────── */
 async function pickFolder() {
-  if (!fsSAPIEnabled) {
-    dirHandle = { name: 'ZIP Download (browser default)' };
-    document.getElementById('btn-start').disabled = false;
-    return;
-  }
-
   try {
     dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
     applyFolderUI(dirHandle.name);
@@ -901,15 +878,11 @@ async function startDownload() {
 
   const skipErr        = document.getElementById('f-skiperr').checked;
   const concur         = parseInt(document.getElementById('f-concur').value, 10);
-  const useZip         = !fsSAPIEnabled || (dirHandle && dirHandle._quickPick);
   const total          = selected.length;
   const dirName        = dirHandle ? dirHandle.name : 'Downloads';
 
   // Resolve actual write target (may be a date subfolder if toggle is on)
-  let writeHandle = dirHandle;
-  if (!useZip) {
-    writeHandle = await resolveWriteTarget(dirHandle);
-  }
+  let writeHandle = await resolveWriteTarget(dirHandle);
   _lastWriteHandle = writeHandle;
   const writeDirName = (writeHandle && writeHandle.name) ? writeHandle.name : dirName;
 
@@ -925,17 +898,16 @@ async function startDownload() {
   setStats(total, 0, 0);
 
   // Update step 2 UI
-  document.getElementById('dest-path-display').textContent = useZip ? 'invoices.zip (Downloads)' : writeDirName;
+  document.getElementById('dest-path-display').textContent = writeDirName;
   document.getElementById('step2-sub').textContent = \`Saving \${total} PDF\${total!==1?'s':''} — concurrency: \${concur}\`;
   document.getElementById('concur-val').textContent = concur;
   document.getElementById('skiperr-disp').textContent = skipErr ? 'On' : 'Off';
-  document.getElementById('dl-hero-sub').textContent  = \`\${total} invoice\${total!==1?'s':''} · concurrency \${concur}\${useZip?' · ZIP mode':''}\`;
+  document.getElementById('dl-hero-sub').textContent  = \`\${total} invoice\${total!==1?'s':''} · concurrency \${concur}\`;
   setProgress(0, total, 'Starting…');
 
   // Go to step 2
   goToStep(2);
 
-  let zip = (useZip) ? new JSZip() : null;
 
 
   const done = { n: 0 };
@@ -961,11 +933,7 @@ async function startDownload() {
       document.getElementById('dm-speed').textContent  = kbps + ' KB/s';
       document.getElementById('speed-disp').textContent = kbps + ' KB/s';
 
-      if (useZip) {
-        zip.file(filename, buffer);
-      } else {
-        await writePDFToFolder(writeHandle, filename, buffer);
-      }
+      await writePDFToFolder(writeHandle, filename, buffer);
 
       setRowStatus(inv.id, 'ok');
       return { inv, ok: true, filename, kb };
@@ -997,13 +965,6 @@ async function startDownload() {
     document.getElementById('dl-status-text').textContent = 'Stopped';
     document.getElementById('dl-pulse').style.background = 'var(--rose)';
   } else {
-    // ZIP: trigger browser download
-    if (useZip && successCount > 0) {
-      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
-      saveAs(blob, 'invoices_' + fmtDate(new Date()) + '.zip');
-    }
-
-
     // Go to step 3
     const hasErrors = failedCount > 0;
     document.getElementById('done-icon').textContent  = hasErrors ? '⚠️' : '✅';
@@ -1016,13 +977,9 @@ async function startDownload() {
     document.getElementById('done-success').textContent = successCount;
     document.getElementById('done-failed').textContent  = failedCount;
     document.getElementById('done-time').textContent    = elapsed + 's';
-    document.getElementById('done-path').textContent    = useZip
-      ? 'invoices_' + fmtDate(new Date()) + '.zip (Downloads folder)'
-      : writeDirName;
+    document.getElementById('done-path').textContent    = writeDirName;
     document.getElementById('done-path-card').style.display = 'flex';
-    document.getElementById('step3-sub').textContent = useZip
-      ? 'ZIP archive saved to Downloads'
-      : \`\${successCount} PDF\${successCount!==1?'s':''} saved to \${writeDirName}\`;
+    document.getElementById('step3-sub').textContent = \`\${successCount} PDF\${successCount!==1?'s':''} saved to \${writeDirName}\`;
 
     goToStep(3);
   }

@@ -25,12 +25,6 @@ define([], () => {
     </div>
   </div>
 
-  <!-- FSAPI Warning -->
-  <div class="fsapi-warn" id="fsapi-warn">
-    <svg width="16" height="16" fill="none" viewBox="0 0 16 16"><path d="M8 1l7 13H1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v4M8 11.5v.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-    <div><strong>ZIP fallback mode:</strong> Your browser doesn't support the File System Access API (requires Chrome or Edge). PDFs will be bundled into a ZIP file and downloaded to your browser's default download folder.</div>
-  </div>
-
   <!-- Filter bar -->
   <div class="filter-bar">
     <div class="filter-group">
@@ -287,12 +281,6 @@ define([], () => {
               <div class="qf" onclick="event.stopPropagation(); pickQuick(this, 'Documents/Invoices')">📁 Documents › Invoices</div>
             </div>
           </div>
-        </div>
-
-        <!-- Warning for zip mode -->
-        <div class="warn-banner" id="zip-warn">
-          <svg width="15" height="15" fill="none" viewBox="0 0 15 15"><path d="M7.5 1.5l6.5 12h-13z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M7.5 6v4M7.5 11v.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          <div><strong>ZIP mode:</strong> PDFs will be bundled as a ZIP file and saved to your browser's default downloads folder. Folder selection is not available on this browser.</div>
         </div>
 
         <!-- Download Settings -->

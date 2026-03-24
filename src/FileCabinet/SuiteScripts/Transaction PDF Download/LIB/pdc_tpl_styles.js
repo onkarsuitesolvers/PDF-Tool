@@ -77,16 +77,6 @@ body::before {
 .page-title em { color: var(--teal-bright); font-style: italic; }
 .page-sub { font-size: 13px; color: var(--text-secondary); margin-top: 5px; }
 
-/* ── FSAPI Warning ── */
-.fsapi-warn {
-  display: none;
-  background: var(--amber-pale); border: 1.5px solid var(--amber-light);
-  border-radius: 12px; padding: 12px 18px;
-  font-size: 13px; color: var(--amber);
-  align-items: center; gap: 10px;
-}
-.fsapi-warn.show { display: flex; }
-
 /* ── Stats row ── */
 .stats-row {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
@@ -623,15 +613,6 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
 .dpc-lbl { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--teal-mid); }
 .dpc-path { font-size: 13px; font-weight: 500; color: var(--teal-deep); margin-top: 2px; word-break: break-all; }
 .done-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-
-/* Warning banner */
-.warn-banner {
-  background: var(--amber-pale); border: 1.5px solid var(--amber-light);
-  border-radius: 12px; padding: 12px 16px;
-  font-size: 13px; color: #9A5A1A;
-  display: none; align-items: flex-start; gap: 10px;
-}
-.warn-banner.show { display: flex; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 5px; }

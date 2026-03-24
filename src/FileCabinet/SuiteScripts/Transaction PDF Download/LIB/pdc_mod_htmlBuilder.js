@@ -34,9 +34,6 @@ define(
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Print &amp; Download Center — NetSuite</title>
 
-<!-- JSZip + FileSaver for non-Chrome fallback -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"><\/script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"><\/script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,500;0,700;1,300&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 
 <style>
