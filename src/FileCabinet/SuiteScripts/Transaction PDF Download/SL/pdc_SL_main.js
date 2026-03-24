@@ -48,6 +48,7 @@ define(
   [
     'N/runtime',
     'N/log',
+    'N/ui/serverWidget',
     '../LIB/pdc_mod_invoices',
     '../LIB/pdc_mod_creditMemos',
     '../LIB/pdc_mod_invoiceGroups',
@@ -55,7 +56,7 @@ define(
     '../LIB/pdc_mod_pdfRenderer',
     '../LIB/pdc_mod_htmlBuilder'
   ],
-  (runtime, log, invoices, creditMemos, invoiceGroups, lookups, pdfRenderer, htmlBuilder) => {
+  (runtime, log, serverWidget, invoices, creditMemos, invoiceGroups, lookups, pdfRenderer, htmlBuilder) => {
 
   // ─── ACTION ROUTER ────────────────────────────────────────────────────────────
 
@@ -111,8 +112,17 @@ define(
     const subsidiaries = lookups.fetchSubsidiaries();
     const customers    = lookups.fetchCustomers();
 
-    response.setHeader({ name: 'Content-Type', value: 'text/html; charset=utf-8' });
-    response.write(htmlBuilder.buildHTML(baseUrl, customers, subsidiaries));
+    const form = serverWidget.createForm({ title: 'Print & Download Center', hideNavBar: true });
+
+    const htmlField = form.addField({
+      id:    'custpage_html_content',
+      type:  serverWidget.FieldType.INLINEHTML,
+      label: 'Content'
+    });
+
+    htmlField.defaultValue = htmlBuilder.buildHTML(baseUrl, customers, subsidiaries);
+
+    response.writePage(form);
   };
 
   // ─── EXPORT ───────────────────────────────────────────────────────────────────
