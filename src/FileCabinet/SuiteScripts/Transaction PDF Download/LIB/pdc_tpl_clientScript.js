@@ -478,6 +478,46 @@ function setRowStatus(id, status) {
 }
 
 /* ─────────────────────────────────────────
+   SINGLE-ROW ACTIONS  (Preview / Download)
+───────────────────────────────────────── */
+async function previewPDF(id, tranId) {
+  const inv = invoices.find(i => i.id === id);
+  if (!inv) return;
+  try {
+    const buffer = await downloadOnePDF(inv);
+    const blob   = new Blob([buffer], { type: 'application/pdf' });
+    window.open(URL.createObjectURL(blob), '_blank');
+  } catch (e) {
+    alert('Preview failed: ' + e.message);
+  }
+}
+
+async function downloadSingle(id, tranId) {
+  const inv = invoices.find(i => i.id === id);
+  if (!inv) return;
+  setRowStatus(id, 'active');
+  try {
+    const buffer   = await downloadOnePDF(inv);
+    const filename = buildFilename(inv);
+
+    if (dirHandle && dirHandle.getFileHandle) {
+      await writePDFToFolder(dirHandle, filename, buffer);
+    } else {
+      const blob = new Blob([buffer], { type: 'application/pdf' });
+      const a    = document.createElement('a');
+      a.href     = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    setRowStatus(id, 'ok');
+  } catch (e) {
+    setRowStatus(id, 'err');
+  }
+}
+
+/* ─────────────────────────────────────────
    SEARCH (legacy alias — kept for any
    inline onclick="searchInvoices()" calls)
 ───────────────────────────────────────── */
