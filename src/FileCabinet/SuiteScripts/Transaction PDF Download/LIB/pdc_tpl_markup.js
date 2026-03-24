@@ -124,7 +124,7 @@ define([], () => {
       </select>
     </div>
     <div class="filter-divider"></div>
-    <button class="btn btn-primary" onclick="doSearch()" id="btn-search" style="align-self:flex-end">
+    <button type="button" class="btn btn-primary" onclick="doSearch()" id="btn-search" style="align-self:flex-end">
       <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M10 10l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
       <span id="btn-search-label">Search Transactions</span>
     </button>
@@ -178,8 +178,8 @@ define([], () => {
         <div class="table-meta" id="table-meta">0 transactions</div>
       </div>
       <div class="table-actions">
-        <button class="btn btn-outline btn-sm" onclick="toggleSelectAll()">Select All</button>
-        <button class="btn btn-amber btn-sm" onclick="openModal()" id="btn-dl-selected" disabled>
+        <button type="button" class="btn btn-outline btn-sm" onclick="toggleSelectAll()">Select All</button>
+        <button type="button" class="btn btn-amber btn-sm" onclick="openModal()" id="btn-dl-selected" disabled>
           <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M6 1v8M3 6l3 3 3-3M2 10h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           Download Selected
         </button>
@@ -241,7 +241,7 @@ define([], () => {
             <div class="modal-sub" id="step1-sub">Select where PDFs will be saved on your machine</div>
           </div>
         </div>
-        <button class="close-modal" onclick="closeModal()">✕</button>
+        <button type="button" class="close-modal" onclick="closeModal()">✕</button>
       </div>
 
       <div class="step-track">
@@ -283,7 +283,7 @@ define([], () => {
                 <div class="fp-title" id="fp-title">No folder selected</div>
                 <div class="fp-hint" id="fp-hint">Click to browse or use a quick folder below</div>
               </div>
-              <button class="fp-browse" id="fp-browse-btn" onclick="event.stopPropagation(); pickFolder()">
+              <button type="button" class="fp-browse" id="fp-browse-btn" onclick="event.stopPropagation(); pickFolder()">
                 <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M2 3h3.5l1 1H10a1 1 0 011 1v4H1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/></svg>
                 Browse…
               </button>
@@ -345,7 +345,7 @@ define([], () => {
                 <div class="tl-label">Create date subfolder</div>
                 <div class="tl-sub">Save into YYYY-MM-DD subfolder</div>
               </div>
-              <button class="toggle-sw on" id="toggle-subfolder" onclick="this.classList.toggle('on')"></button>
+              <button type="button" class="toggle-sw on" id="toggle-subfolder" onclick="this.classList.toggle('on')"></button>
             </div>
           </div>
         </div>
@@ -353,12 +353,12 @@ define([], () => {
       </div><!-- /modal-body step 1 -->
 
       <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
         <span id="folder-tip" style="font-size:12px;color:var(--amber);display:flex;align-items:center;gap:5px;margin-right:auto;">
           <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/><path d="M6 4.5v3M6 9v.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
           Select a folder to continue
         </span>
-        <button class="btn btn-primary" id="btn-start" onclick="startDownload()" disabled>
+        <button type="button" class="btn btn-primary" id="btn-start" onclick="startDownload()" disabled>
           <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><path d="M7 1v9M4 7l3 3 3-3M2 12h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
           Start Download →
         </button>
@@ -437,11 +437,11 @@ define([], () => {
 
         <!-- Controls -->
         <div class="dl-controls">
-          <button class="ctrl-btn ctrl-pause" id="btn-pause" onclick="togglePause()">
+          <button type="button" class="ctrl-btn ctrl-pause" id="btn-pause" onclick="togglePause()">
             <svg width="11" height="11" fill="none" viewBox="0 0 11 11"><rect x="1.5" y="1" width="3" height="9" rx="1" fill="currentColor"/><rect x="6.5" y="1" width="3" height="9" rx="1" fill="currentColor"/></svg>
             Pause
           </button>
-          <button class="ctrl-btn ctrl-cancel" id="btn-cancel" onclick="cancelDownload()">
+          <button type="button" class="ctrl-btn ctrl-cancel" id="btn-cancel" onclick="cancelDownload()">
             <svg width="11" height="11" fill="none" viewBox="0 0 11 11"><path d="M2 2l7 7M9 2l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             Cancel
           </button>
@@ -459,7 +459,7 @@ define([], () => {
           Concurrent: <strong id="concur-val" style="color:var(--teal-mid)">5</strong> · Skip errors: <strong id="skiperr-disp" style="color:var(--teal-mid)">On</strong>
         </div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-outline btn-sm" onclick="cancelDownload()">Stop Download</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="cancelDownload()">Stop Download</button>
         </div>
       </div>
     </div><!-- /step 2 -->
@@ -479,7 +479,7 @@ define([], () => {
             <div class="modal-sub" id="step3-sub">All files saved successfully</div>
           </div>
         </div>
-        <button class="close-modal" onclick="closeModal()">✕</button>
+        <button type="button" class="close-modal" onclick="closeModal()">✕</button>
       </div>
 
       <div class="step-track">
@@ -516,8 +516,8 @@ define([], () => {
         </div>
 
         <div class="done-actions">
-          <button class="btn btn-outline" onclick="resetAndClose()">← New Search</button>
-          <button class="btn btn-success" onclick="closeModal()">Done</button>
+          <button type="button" class="btn btn-outline" onclick="resetAndClose()">← New Search</button>
+          <button type="button" class="btn btn-success" onclick="closeModal()">Done</button>
         </div>
 
       </div><!-- /modal-body step 3 -->

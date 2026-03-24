@@ -575,10 +575,10 @@ function renderInvoiceRow(inv) {
     <td><span class="badge-status \${invStatusClass(inv.statusCode)}">\${escHtml(inv.status || '—')}</span></td>
     <td>
       <div class="row-actions">
-        <button class="icon-btn preview" title="Preview" onclick="previewPDF(\${inv.id},'\${inv.tranId}')">
+        <button type="button" class="icon-btn preview" title="Preview" onclick="previewPDF(\${inv.id},'\${inv.tranId}')">
           <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg>
         </button>
-        <button class="icon-btn dl" title="Download PDF" onclick="downloadSingle(\${inv.id},'\${inv.tranId}')">
+        <button type="button" class="icon-btn dl" title="Download PDF" onclick="downloadSingle(\${inv.id},'\${inv.tranId}')">
           <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M6 1v7M3.5 5.5L6 8l2.5-2.5M1 10h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <div class="dl-status" style="min-width:72px">
@@ -609,10 +609,10 @@ function renderCreditMemoRow(inv) {
     <td><span class="badge-status \${cmStatusClass(inv.statusCode)}">\${escHtml(inv.status || '—')}</span></td>
     <td>
       <div class="row-actions">
-        <button class="icon-btn preview" title="Preview" onclick="previewPDF(\${inv.id},'\${inv.tranId}')">
+        <button type="button" class="icon-btn preview" title="Preview" onclick="previewPDF(\${inv.id},'\${inv.tranId}')">
           <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg>
         </button>
-        <button class="icon-btn dl" title="Download PDF" onclick="downloadSingle(\${inv.id},'\${inv.tranId}')">
+        <button type="button" class="icon-btn dl" title="Download PDF" onclick="downloadSingle(\${inv.id},'\${inv.tranId}')">
           <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M6 1v7M3.5 5.5L6 8l2.5-2.5M1 10h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <div class="dl-status" style="min-width:72px">
@@ -641,10 +641,10 @@ function renderInvoiceGroupRow(inv) {
     <td><span class="badge-status \${grpStatusClass(inv.statusCode)}">\${escHtml(inv.status || '—')}</span></td>
     <td>
       <div class="row-actions">
-        <button class="icon-btn preview" title="Preview" onclick="previewPDF(\${inv.id},'\${inv.tranId}')">
+        <button type="button" class="icon-btn preview" title="Preview" onclick="previewPDF(\${inv.id},'\${inv.tranId}')">
           <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg>
         </button>
-        <button class="icon-btn dl" title="Download PDF" onclick="downloadSingle(\${inv.id},'\${inv.tranId}')">
+        <button type="button" class="icon-btn dl" title="Download PDF" onclick="downloadSingle(\${inv.id},'\${inv.tranId}')">
           <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M6 1v7M3.5 5.5L6 8l2.5-2.5M1 10h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <div class="dl-status" style="min-width:72px">
