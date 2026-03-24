@@ -25,21 +25,29 @@ define([], () => {
     </div>
   </div>
 
-  <!-- FSAPI Warning -->
-  <div class="fsapi-warn" id="fsapi-warn">
-    <svg width="16" height="16" fill="none" viewBox="0 0 16 16"><path d="M8 1l7 13H1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v4M8 11.5v.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-    <div><strong>ZIP fallback mode:</strong> Your browser doesn't support the File System Access API (requires Chrome or Edge). PDFs will be bundled into a ZIP file and downloaded to your browser's default download folder.</div>
-  </div>
-
   <!-- Filter bar -->
   <div class="filter-bar">
-    <div class="filter-group">
+    <div class="filter-group" id="fg-trantype">
       <div class="filter-label">Transaction Type</div>
-      <select class="filter-select" id="f-trantype" onchange="onTranTypeChange(this.value)">
-        <option value="invoices">Invoices</option>
-        <option value="creditmemos">Credit Memos</option>
-        <option value="invoicegroups">Invoice Groups</option>
-      </select>
+      <div class="ms-wrap" id="ms-trantype-wrap">
+        <div class="ms-trigger" id="ms-trantype-trigger" onclick="msToggle('trantype')">
+          <span class="ms-placeholder" id="ms-trantype-placeholder">All Transaction Types</span>
+          <svg class="ms-arrow" width="10" height="7" fill="none" viewBox="0 0 10 7"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </div>
+        <div class="ms-dropdown" id="ms-trantype-dropdown">
+          <div class="ms-search-wrap">
+            <div class="ms-search-box">
+              <svg class="ms-search-icon" width="13" height="13" fill="none" viewBox="0 0 13 13"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M10 10l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <input class="ms-search" id="ms-trantype-search" placeholder="Search types…" oninput="msFilter('trantype')" onclick="event.stopPropagation()"/>
+            </div>
+          </div>
+          <div class="ms-list" id="ms-trantype-list"></div>
+          <div class="ms-footer">
+            <span class="ms-footer-count" id="ms-trantype-count">0 selected</span>
+            <span class="ms-footer-clear" onclick="msClear('trantype')">Clear all</span>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="filter-group">
       <div class="filter-label">Date From</div>
@@ -287,12 +295,6 @@ define([], () => {
               <div class="qf" onclick="event.stopPropagation(); pickQuick(this, 'Documents/Invoices')">📁 Documents › Invoices</div>
             </div>
           </div>
-        </div>
-
-        <!-- Warning for zip mode -->
-        <div class="warn-banner" id="zip-warn">
-          <svg width="15" height="15" fill="none" viewBox="0 0 15 15"><path d="M7.5 1.5l6.5 12h-13z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M7.5 6v4M7.5 11v.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          <div><strong>ZIP mode:</strong> PDFs will be bundled as a ZIP file and saved to your browser's default downloads folder. Folder selection is not available on this browser.</div>
         </div>
 
         <!-- Download Settings -->

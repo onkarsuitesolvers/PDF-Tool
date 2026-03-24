@@ -157,10 +157,13 @@ function switchPage(pageId) {
 }
 
 /* ─────────────────────────────────────────
-   TRANSACTION TYPE CHANGE
+   TRANSACTION TYPE SELECTION CHANGE
 ───────────────────────────────────────── */
-function onTranTypeChange(val) {
-  switchPage(val);
+function onTranTypeSelectionChange() {
+  const sel = msGetValues('trantype');
+  // Use first selected type's config, or default to invoices when none selected
+  const pageId = sel.length > 0 ? sel[0] : 'invoices';
+  switchPage(pageId);
 }
 
 /* ─────────────────────────────────────────
@@ -173,23 +176,35 @@ async function doSearch() {
   const origLabel = cfg.searchLabel;
   document.getElementById('btn-search-label').textContent = 'Searching…';
 
-  const params = new URLSearchParams({
-    action:     cfg.action,
-    dateFrom:   document.getElementById('f-dateFrom').value,
-    dateTo:     document.getElementById('f-dateTo').value,
-    customer:   msGetValues('customer').join(','),
-    subsidiary: msGetValues('subsidiary').join(','),
-    status:     document.getElementById('f-status').value
-  });
-
+  // Determine which transaction types to search
+  const selTypes = msGetValues('trantype');
+  const typesToSearch = selTypes.length > 0 ? selTypes : Object.keys(PAGE_CONFIG);
 
   try {
-    const resp = await fetch(BASE_URL + '&' + params.toString());
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const data = await resp.json();
-    if (!data.success) throw new Error(data.error || 'Unknown error');
+    let allInvoices = [];
 
-    invoices = data.invoices || [];
+    for (const typeKey of typesToSearch) {
+      const typeCfg = PAGE_CONFIG[typeKey];
+      if (!typeCfg) continue;
+
+      const params = new URLSearchParams({
+        action:     typeCfg.action,
+        dateFrom:   document.getElementById('f-dateFrom').value,
+        dateTo:     document.getElementById('f-dateTo').value,
+        customer:   msGetValues('customer').join(','),
+        subsidiary: msGetValues('subsidiary').join(','),
+        status:     document.getElementById('f-status').value
+      });
+
+      const resp = await fetch(BASE_URL + '&' + params.toString());
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.error || 'Unknown error');
+
+      allInvoices = allInvoices.concat(data.invoices || []);
+    }
+
+    invoices = allInvoices;
     renderTable(invoices);
     setStats(invoices.length, 0, 0);
 
@@ -211,6 +226,7 @@ async function doSearch() {
    MULTISELECT WIDGET
 ───────────────────────────────────────── */
 const MS_STATE = {
+  trantype:   { options: [], selected: new Set(), open: false },
   customer:   { options: [], selected: new Set(), open: false },
   subsidiary: { options: [], selected: new Set(), open: false }
 };
@@ -271,7 +287,7 @@ function msRenderList(key, options) {
     return \`<div class="ms-option\${isSel ? ' selected' : ''}" onclick="msToggleOption('\${key}','\${o.id}',this)">
       <input type="checkbox" \${isSel ? 'checked' : ''} onclick="event.stopPropagation();msToggleOption('\${key}','\${o.id}',this.closest('.ms-option'))"/>
       <span class="ms-option-label">\${escHtml(o.label)}</span>
-      <span class="ms-option-sub">#\${o.id}</span>
+      \${key === 'trantype' ? '' : \`<span class="ms-option-sub">#\${o.id}</span>\`}
     </div>\`;
   }).join('');
 }
@@ -289,12 +305,14 @@ function msToggleOption(key, id, el) {
     el.querySelector('input').checked = true;
   }
   msUpdateTrigger(key);
+  if (key === 'trantype') onTranTypeSelectionChange();
 }
 
 function msClear(key) {
   MS_STATE[key].selected.clear();
   msRenderList(key, MS_STATE[key].options);
   msUpdateTrigger(key);
+  if (key === 'trantype') onTranTypeSelectionChange();
 }
 
 function msUpdateTrigger(key) {
@@ -314,7 +332,7 @@ function msUpdateTrigger(key) {
     const ph = document.createElement('span');
     ph.className = 'ms-placeholder';
     ph.id = \`ms-\${key}-placeholder\`;
-    ph.textContent = key === 'customer' ? 'All Customers' : 'All Subsidiaries';
+    ph.textContent = key === 'customer' ? 'All Customers' : key === 'trantype' ? 'All Transaction Types' : 'All Subsidiaries';
     trigger.insertBefore(ph, arrow);
     return;
   }
@@ -346,6 +364,7 @@ function msRemovePill(key, sid) {
   MS_STATE[key].selected.delete(sid);
   msRenderList(key, MS_STATE[key].options);
   msUpdateTrigger(key);
+  if (key === 'trantype') onTranTypeSelectionChange();
 }
 
 function msGetValues(key) {
@@ -359,28 +378,18 @@ function msGetValues(key) {
 (function init() {
   fsSAPIEnabled = ('showDirectoryPicker' in window);
 
-  if (!fsSAPIEnabled) {
-    document.getElementById('fsapi-warn').classList.add('show');
-    document.getElementById('zip-warn').classList.add('show');
-    document.getElementById('folder-section-label').textContent = 'Download Mode';
-    document.getElementById('fp-title').textContent = 'ZIP Download (browser default folder)';
-    document.getElementById('fp-hint').textContent  = 'PDFs will be bundled into a ZIP file';
-    document.getElementById('folder-tip').style.display = 'none';
-    document.getElementById('chip-mode').querySelector('svg').parentNode
-      .querySelector('svg').nextSibling.textContent = ' ZIP Bundle';
-    // Auto-enable start in ZIP mode
-    dirHandle = { name: 'ZIP Download' };
-    document.getElementById('btn-start').disabled = false;
-    document.getElementById('folder-path').textContent = 'PDFs will be bundled as invoices.zip';
-    document.getElementById('folder-path').classList.add('chosen');
-    document.getElementById('quick-folders').style.display = 'none';
-  }
-
   // Default date range: last 90 days
   const today = new Date();
   const ago90 = new Date(today); ago90.setDate(ago90.getDate() - 90);
   document.getElementById('f-dateTo').value   = fmtDate(today);
   document.getElementById('f-dateFrom').value = fmtDate(ago90);
+
+  // Populate transaction type multiselect
+  msSetOptions('trantype', [
+    { id: 'invoices',      label: 'Invoices' },
+    { id: 'creditmemos',   label: 'Credit Memos' },
+    { id: 'invoicegroups', label: 'Invoice Groups' }
+  ]);
 
   // Populate multiselect dropdowns from server-embedded data
   msSetOptions('customer',   __LOOKUPS__.customers    || []);
@@ -465,6 +474,46 @@ function setRowStatus(id, status) {
                   : status === 'err'    ? 'row-err'
                   : status === 'active' ? 'row-active'
                   : '';
+  }
+}
+
+/* ─────────────────────────────────────────
+   SINGLE-ROW ACTIONS  (Preview / Download)
+───────────────────────────────────────── */
+async function previewPDF(id, tranId) {
+  const inv = invoices.find(i => i.id === id);
+  if (!inv) return;
+  try {
+    const buffer = await downloadOnePDF(inv);
+    const blob   = new Blob([buffer], { type: 'application/pdf' });
+    window.open(URL.createObjectURL(blob), '_blank');
+  } catch (e) {
+    alert('Preview failed: ' + e.message);
+  }
+}
+
+async function downloadSingle(id, tranId) {
+  const inv = invoices.find(i => i.id === id);
+  if (!inv) return;
+  setRowStatus(id, 'active');
+  try {
+    const buffer   = await downloadOnePDF(inv);
+    const filename = buildFilename(inv);
+
+    if (dirHandle && dirHandle.getFileHandle) {
+      await writePDFToFolder(dirHandle, filename, buffer);
+    } else {
+      const blob = new Blob([buffer], { type: 'application/pdf' });
+      const a    = document.createElement('a');
+      a.href     = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    setRowStatus(id, 'ok');
+  } catch (e) {
+    setRowStatus(id, 'err');
   }
 }
 
@@ -676,8 +725,8 @@ function handleOverlayClick(e) {
 
 function resetAndClose() {
   cancelled = false; paused = false; downloading = false;
-  dirHandle = fsSAPIEnabled ? null : { name: 'ZIP Download' };
-  if (fsSAPIEnabled) {
+  dirHandle = null;
+  {
     document.getElementById('folder-path').textContent = 'No folder chosen — click Browse to select';
     document.getElementById('folder-path').classList.remove('chosen');
     document.getElementById('folder-picker').classList.remove('selected');
@@ -704,12 +753,6 @@ function goToStep(n) {
    FOLDER PICKER  →  File System Access API
 ───────────────────────────────────────── */
 async function pickFolder() {
-  if (!fsSAPIEnabled) {
-    dirHandle = { name: 'ZIP Download (browser default)' };
-    document.getElementById('btn-start').disabled = false;
-    return;
-  }
-
   try {
     dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
     applyFolderUI(dirHandle.name);
@@ -901,15 +944,11 @@ async function startDownload() {
 
   const skipErr        = document.getElementById('f-skiperr').checked;
   const concur         = parseInt(document.getElementById('f-concur').value, 10);
-  const useZip         = !fsSAPIEnabled || (dirHandle && dirHandle._quickPick);
   const total          = selected.length;
   const dirName        = dirHandle ? dirHandle.name : 'Downloads';
 
   // Resolve actual write target (may be a date subfolder if toggle is on)
-  let writeHandle = dirHandle;
-  if (!useZip) {
-    writeHandle = await resolveWriteTarget(dirHandle);
-  }
+  let writeHandle = await resolveWriteTarget(dirHandle);
   _lastWriteHandle = writeHandle;
   const writeDirName = (writeHandle && writeHandle.name) ? writeHandle.name : dirName;
 
@@ -925,17 +964,16 @@ async function startDownload() {
   setStats(total, 0, 0);
 
   // Update step 2 UI
-  document.getElementById('dest-path-display').textContent = useZip ? 'invoices.zip (Downloads)' : writeDirName;
+  document.getElementById('dest-path-display').textContent = writeDirName;
   document.getElementById('step2-sub').textContent = \`Saving \${total} PDF\${total!==1?'s':''} — concurrency: \${concur}\`;
   document.getElementById('concur-val').textContent = concur;
   document.getElementById('skiperr-disp').textContent = skipErr ? 'On' : 'Off';
-  document.getElementById('dl-hero-sub').textContent  = \`\${total} invoice\${total!==1?'s':''} · concurrency \${concur}\${useZip?' · ZIP mode':''}\`;
+  document.getElementById('dl-hero-sub').textContent  = \`\${total} invoice\${total!==1?'s':''} · concurrency \${concur}\`;
   setProgress(0, total, 'Starting…');
 
   // Go to step 2
   goToStep(2);
 
-  let zip = (useZip) ? new JSZip() : null;
 
 
   const done = { n: 0 };
@@ -961,11 +999,7 @@ async function startDownload() {
       document.getElementById('dm-speed').textContent  = kbps + ' KB/s';
       document.getElementById('speed-disp').textContent = kbps + ' KB/s';
 
-      if (useZip) {
-        zip.file(filename, buffer);
-      } else {
-        await writePDFToFolder(writeHandle, filename, buffer);
-      }
+      await writePDFToFolder(writeHandle, filename, buffer);
 
       setRowStatus(inv.id, 'ok');
       return { inv, ok: true, filename, kb };
@@ -997,13 +1031,6 @@ async function startDownload() {
     document.getElementById('dl-status-text').textContent = 'Stopped';
     document.getElementById('dl-pulse').style.background = 'var(--rose)';
   } else {
-    // ZIP: trigger browser download
-    if (useZip && successCount > 0) {
-      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
-      saveAs(blob, 'invoices_' + fmtDate(new Date()) + '.zip');
-    }
-
-
     // Go to step 3
     const hasErrors = failedCount > 0;
     document.getElementById('done-icon').textContent  = hasErrors ? '⚠️' : '✅';
@@ -1016,13 +1043,9 @@ async function startDownload() {
     document.getElementById('done-success').textContent = successCount;
     document.getElementById('done-failed').textContent  = failedCount;
     document.getElementById('done-time').textContent    = elapsed + 's';
-    document.getElementById('done-path').textContent    = useZip
-      ? 'invoices_' + fmtDate(new Date()) + '.zip (Downloads folder)'
-      : writeDirName;
+    document.getElementById('done-path').textContent    = writeDirName;
     document.getElementById('done-path-card').style.display = 'flex';
-    document.getElementById('step3-sub').textContent = useZip
-      ? 'ZIP archive saved to Downloads'
-      : \`\${successCount} PDF\${successCount!==1?'s':''} saved to \${writeDirName}\`;
+    document.getElementById('step3-sub').textContent = \`\${successCount} PDF\${successCount!==1?'s':''} saved to \${writeDirName}\`;
 
     goToStep(3);
   }
