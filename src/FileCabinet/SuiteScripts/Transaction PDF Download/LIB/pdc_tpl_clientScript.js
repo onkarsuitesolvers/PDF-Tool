@@ -53,7 +53,8 @@ const PAGE_CONFIG = {
     emptyIcon:   '🔎',
     emptyText:   'No invoices found',
     emptySub:    'Try adjusting your filters or broadening the date range',
-    tableMeta:   'invoices',
+    tableMeta:   'transactions',
+    typeLabel:   'Invoice',
     statusOptions: [
       { value: '',        label: 'All Statuses' },
       { value: 'open',    label: 'Open / Partial' },
@@ -62,7 +63,7 @@ const PAGE_CONFIG = {
     ],
     theadHTML: \`<tr>
       <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
-      <th>Tran ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
+      <th>Type</th><th>Tran ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
       <th>Amount</th><th>Status</th><th>DL Status</th>
     </tr>\`,
     rowRendererKey: 'renderInvoiceRow',
@@ -76,7 +77,8 @@ const PAGE_CONFIG = {
     emptyIcon:   '📋',
     emptyText:   'No credit memos found',
     emptySub:    'Try adjusting your filters — credit memos use different status codes',
-    tableMeta:   'credit memos',
+    tableMeta:   'transactions',
+    typeLabel:   'Credit Memo',
     statusOptions: [
       { value: '',        label: 'All Statuses' },
       { value: 'open',    label: 'Open' },
@@ -84,7 +86,7 @@ const PAGE_CONFIG = {
     ],
     theadHTML: \`<tr>
       <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
-      <th>CM Number</th><th>Customer</th><th>Date</th><th>CM Amount</th>
+      <th>Type</th><th>CM Number</th><th>Customer</th><th>Date</th><th>CM Amount</th>
       <th>Remaining</th><th>Status</th><th>DL Status</th>
     </tr>\`,
     rowRendererKey: 'renderCreditMemoRow',
@@ -98,12 +100,13 @@ const PAGE_CONFIG = {
     emptyIcon:   '📦',
     emptyText:   'No invoice groups found',
     emptySub:    'Invoice groups must be created before they appear here',
-    tableMeta:   'invoice groups',
+    tableMeta:   'transactions',
+    typeLabel:   'Invoice Group',
     statusOptions: [],
     hideFilters: ['status', 'subsidiary'],
     theadHTML: \`<tr>
       <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
-      <th>Group ID</th><th>Customer</th><th>Date</th>
+      <th>Type</th><th>Group ID</th><th>Customer</th><th>Date</th>
       <th>Amount Due</th><th>Status</th><th>DL Status</th>
     </tr>\`,
     rowRendererKey: 'renderInvoiceGroupRow',
@@ -149,7 +152,7 @@ function switchPage(pageId) {
   // Reset results
   invoices = [];
   document.getElementById('inv-tbody').innerHTML   = '';
-  document.getElementById('table-meta').textContent = '0 ' + cfg.tableMeta;
+  document.getElementById('table-meta').textContent = '0 transactions';
   document.getElementById('table-container').classList.remove('show');
   document.getElementById('empty-state').classList.remove('show');
   document.getElementById('btn-dl-selected').disabled = true;
@@ -193,7 +196,8 @@ async function doSearch() {
         dateTo:     document.getElementById('f-dateTo').value,
         customer:   msGetValues('customer').join(','),
         subsidiary: msGetValues('subsidiary').join(','),
-        status:     document.getElementById('f-status').value
+        status:     document.getElementById('f-status').value,
+        tranId:     (document.getElementById('f-tranId').value || '').trim()
       });
 
       const resp = await fetch(BASE_URL + '&' + params.toString());
@@ -201,7 +205,9 @@ async function doSearch() {
       const data = await resp.json();
       if (!data.success) throw new Error(data.error || 'Unknown error');
 
-      allInvoices = allInvoices.concat(data.invoices || []);
+      const typeLabel = typeCfg.typeLabel || typeKey;
+      const items = (data.invoices || []).map(inv => ({ ...inv, _typeLabel: typeLabel }));
+      allInvoices = allInvoices.concat(items);
     }
 
     invoices = allInvoices;
@@ -549,8 +555,7 @@ function renderTable(list) {
     tbody.appendChild(tr);
   });
 
-  const lbl = list.length + ' ' + cfg.tableMeta;
-  document.getElementById('table-meta').textContent = lbl;
+  document.getElementById('table-meta').textContent = list.length + ' transactions';
 }
 
 /* ── Invoice row ── */
@@ -561,6 +566,7 @@ function renderInvoiceRow(inv) {
   tr.id = 'row-' + inv.id;
   tr.innerHTML = \`
     <td class="cb-wrap"><input type="checkbox" class="row-cb" data-id="\${inv.id}" onchange="onRowCheck()"/></td>
+    <td><span class="type-label">\${escHtml(inv._typeLabel || 'Invoice')}</span></td>
     <td><span class="tran-id">\${escHtml(inv.tranId)}</span></td>
     <td><div class="cust-cell"><div class="cust-av">\${escHtml(initials)}</div>\${escHtml(inv.customer)}</div></td>
     <td>\${escHtml(inv.date || '—')}</td>
@@ -594,6 +600,7 @@ function renderCreditMemoRow(inv) {
   tr.id = 'row-' + inv.id;
   tr.innerHTML = \`
     <td class="cb-wrap"><input type="checkbox" class="row-cb" data-id="\${inv.id}" onchange="onRowCheck()"/></td>
+    <td><span class="type-label">\${escHtml(inv._typeLabel || 'Credit Memo')}</span></td>
     <td><span class="tran-id" style="color:var(--rose)">\${escHtml(inv.tranId)}</span></td>
     <td><div class="cust-cell"><div class="cust-av" style="background:#E8EEF8;color:#3B6CB5">\${escHtml(initials)}</div>\${escHtml(inv.customer)}</div></td>
     <td>\${escHtml(inv.date || '—')}</td>
@@ -626,6 +633,7 @@ function renderInvoiceGroupRow(inv) {
   tr.id = 'row-' + inv.id;
   tr.innerHTML = \`
     <td class="cb-wrap"><input type="checkbox" class="row-cb" data-id="\${inv.id}" onchange="onRowCheck()"/></td>
+    <td><span class="type-label">\${escHtml(inv._typeLabel || 'Invoice Group')}</span></td>
     <td><span class="tran-id" style="color:var(--amber)">\${escHtml(inv.tranId)}</span></td>
     <td><div class="cust-cell"><div class="cust-av" style="background:#FEF0E0;color:#A07030">\${escHtml(initials)}</div>\${escHtml(inv.customer)}</div></td>
     <td>\${escHtml(inv.date || '—')}</td>
