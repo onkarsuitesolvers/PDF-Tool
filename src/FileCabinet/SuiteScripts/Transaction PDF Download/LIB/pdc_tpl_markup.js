@@ -20,8 +20,7 @@ define([], () => {
   <!-- Page header -->
   <div class="page-header">
     <div>
-      <div class="page-title" id="page-title"><em>Invoices</em></div>
-      <div class="page-sub" id="page-sub">Search, preview and download Invoice PDFs by customer or date range</div>
+      <div class="page-title" id="page-title"><em>Search, preview and download Transaction PDFs</em></div>
     </div>
   </div>
 
