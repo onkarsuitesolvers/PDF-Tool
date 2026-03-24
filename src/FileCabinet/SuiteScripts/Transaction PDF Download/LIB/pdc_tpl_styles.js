@@ -61,8 +61,7 @@ body::before {
   padding: 30px 34px;
   position: relative; z-index: 1;
   display: flex; flex-direction: column; gap: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
 }
 
 /* ── Page header ── */

@@ -112,7 +112,7 @@ define(
     const subsidiaries = lookups.fetchSubsidiaries();
     const customers    = lookups.fetchCustomers();
 
-    const form = serverWidget.createForm({ title: 'Print & Download Center', hideNavBar: true });
+    const form = serverWidget.createForm({ title: 'Print & Download Center', hideNavBar: false });
 
     const htmlField = form.addField({
       id:    'custpage_html_content',
