@@ -37,7 +37,7 @@ define([], () => {
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: 'DM Sans', sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   background: var(--surface);
   color: var(--text-primary);
   min-height: 100vh;
@@ -70,7 +70,7 @@ body::before {
   display: flex; align-items: flex-start; justify-content: space-between;
 }
 .page-title {
-  font-family: 'Fraunces', serif;
+  font-family: Georgia, 'Times New Roman', serif;
   font-size: 32px; font-weight: 500;
   color: var(--teal-deep); letter-spacing: -0.8px; line-height: 1.1;
 }
@@ -99,7 +99,7 @@ body::before {
 .si-rose  { background: var(--rose-pale); }
 .si-amber { background: var(--amber-pale); }
 .stat-val {
-  font-family: 'Fraunces', serif; font-size: 26px; font-weight: 700;
+  font-family: Georgia, 'Times New Roman', serif; font-size: 26px; font-weight: 700;
   color: var(--text-primary); line-height: 1;
 }
 .stat-lbl {
@@ -122,7 +122,7 @@ body::before {
 .filter-input, .filter-select {
   padding: 9px 12px; border: 1.5px solid var(--border);
   border-radius: 10px; font-size: 14.5px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--text-primary); background: var(--surface);
   outline: none; transition: border-color 0.18s, box-shadow 0.18s;
   min-width: 130px; min-height: 38px; box-sizing: border-box;
@@ -145,7 +145,7 @@ body::before {
 .btn {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 10px 20px; border-radius: 10px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 15px; font-weight: 600;
   cursor: pointer; border: none; transition: all 0.18s;
 }
@@ -193,7 +193,7 @@ body::before {
   background: linear-gradient(135deg, #F2FAFA, #FAFCFC);
 }
 .table-title {
-  font-family: 'Fraunces', serif; font-size: 18px; font-weight: 500;
+  font-family: Georgia, 'Times New Roman', serif; font-size: 18px; font-weight: 500;
   color: var(--text-primary);
 }
 .table-meta { font-size: 13.5px; color: var(--text-muted); margin-top: 2px; }
@@ -325,7 +325,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
 .mhi-teal  { background: var(--teal-pale); }
 .mhi-green { background: var(--green-pale); }
 .modal-title {
-  font-family: 'Fraunces', serif;
+  font-family: Georgia, 'Times New Roman', serif;
   font-size: 21px; font-weight: 500;
   color: var(--text-primary); letter-spacing: -0.4px;
 }
@@ -409,7 +409,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
   margin-left: auto; padding: 8px 16px; border-radius: 9px;
   background: var(--card); border: 1.5px solid var(--border);
   font-size: 12.5px; font-weight: 600; cursor: pointer;
-  font-family: 'DM Sans', sans-serif; color: var(--text-secondary);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: var(--text-secondary);
   transition: all 0.18s; display: flex; align-items: center; gap: 7px; flex-shrink: 0;
 }
 .fp-browse:hover { border-color: var(--teal-bright); color: var(--teal-mid); background: var(--teal-pale); }
@@ -443,7 +443,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
 .field-input, .field-select {
   width: 100%; padding: 9px 12px; border: 1.5px solid var(--border);
   border-radius: 9px; font-size: 13px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--text-primary); background: var(--surface);
   outline: none; transition: border-color 0.18s, box-shadow 0.18s;
 }
@@ -468,7 +468,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
   flex: 1; accent-color: var(--teal-mid); height: 4px;
 }
 .slider-val {
-  font-family: 'DM Mono', monospace; font-size: 14px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 14px;
   font-weight: 700; color: var(--teal-mid); min-width: 22px; text-align: center;
 }
 
@@ -508,7 +508,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
   margin-bottom: 16px; position: relative; z-index: 1;
 }
 .dl-hero-title {
-  font-family: 'Fraunces', serif; font-size: 18px; font-weight: 500;
+  font-family: Georgia, 'Times New Roman', serif; font-size: 18px; font-weight: 500;
   color: var(--cream);
 }
 .dl-hero-sub { font-size: 12px; color: #88C8C8; margin-top: 3px; }
@@ -531,10 +531,10 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
 .ring-txt {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  font-family: 'Fraunces', serif; font-size: 17px; font-weight: 700; color: var(--cream);
+  font-family: Georgia, 'Times New Roman', serif; font-size: 17px; font-weight: 700; color: var(--cream);
 }
 .dl-mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; flex: 1; }
-.dm-val { font-family: 'Fraunces', serif; font-size: 19px; font-weight: 500; color: var(--cream); }
+.dm-val { font-family: Georgia, 'Times New Roman', serif; font-size: 19px; font-weight: 500; color: var(--cream); }
 .dm-lbl { font-size: 10px; color: #88C8C8; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.8px; }
 .overall-bar-wrap { margin-top: 12px; position: relative; z-index: 1; }
 .ob-top {
@@ -571,7 +571,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
   display: inline-flex; align-items: center; gap: 6px;
   padding: 8px 14px; border-radius: 9px; font-size: 12.5px; font-weight: 600;
   border: 1.5px solid var(--border); background: var(--card); cursor: pointer;
-  font-family: 'DM Sans', sans-serif; color: var(--text-secondary); transition: all 0.15s;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: var(--text-secondary); transition: all 0.15s;
 }
 .ctrl-btn:hover { border-color: var(--teal-bright); color: var(--teal-mid); }
 .ctrl-pause { background: var(--amber-pale); border-color: #F0B87A; color: var(--amber); }
@@ -598,7 +598,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
   to   { transform: scale(1); opacity: 1; }
 }
 .done-title {
-  font-family: 'Fraunces', serif; font-size: 24px; font-weight: 500;
+  font-family: Georgia, 'Times New Roman', serif; font-size: 24px; font-weight: 500;
   color: var(--text-primary); text-align: center; letter-spacing: -0.4px;
 }
 .done-title em { color: var(--green); font-style: italic; }
@@ -608,7 +608,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
   background: var(--surface); border: 1.5px solid var(--border);
   border-radius: 13px; padding: 15px 12px; text-align: center;
 }
-.dsv { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 700; color: var(--text-primary); }
+.dsv { font-family: Georgia, 'Times New Roman', serif; font-size: 22px; font-weight: 700; color: var(--text-primary); }
 .dsl { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text-muted); margin-top: 3px; font-weight: 600; }
 .done-path-card {
   background: var(--teal-pale); border: 1.5px solid var(--teal-bright);
@@ -664,7 +664,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
 .ms-wrap.open .ms-trigger .ms-arrow { transform: translateY(-50%) rotate(180deg); }
 .ms-placeholder {
   font-size: 13px; color: var(--text-muted);
-  font-family: 'DM Sans', sans-serif; user-select: none;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; user-select: none;
   white-space: nowrap;
 }
 .ms-pill {
@@ -701,7 +701,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
 .ms-search {
   width: 100%; padding: 7px 10px 7px 30px;
   border: 1.5px solid var(--border); border-radius: 8px;
-  font-size: 12.5px; font-family: 'DM Sans', sans-serif;
+  font-size: 12.5px; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--text-primary); background: var(--surface);
   outline: none; transition: border-color 0.18s;
 }

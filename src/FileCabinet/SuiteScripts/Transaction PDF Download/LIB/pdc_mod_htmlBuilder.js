@@ -34,8 +34,6 @@ define(
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Print &amp; Download Center — NetSuite</title>
 
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,500;0,700;1,300&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
-
 <style>
 ${styles.getStyles()}
 </style>
