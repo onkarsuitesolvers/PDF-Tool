@@ -125,7 +125,7 @@ body::before {
   font-family: 'DM Sans', sans-serif;
   color: var(--text-primary); background: var(--surface);
   outline: none; transition: border-color 0.18s, box-shadow 0.18s;
-  min-width: 130px;
+  min-width: 130px; min-height: 38px; box-sizing: border-box;
 }
 .filter-input:focus, .filter-select:focus {
   border-color: var(--teal-bright);

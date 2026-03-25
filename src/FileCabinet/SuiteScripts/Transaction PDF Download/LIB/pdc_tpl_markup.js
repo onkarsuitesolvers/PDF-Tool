@@ -17,13 +17,6 @@ define([], () => {
 ════════════════════════════════════════ -->
 <main class="main">
 
-  <!-- Page header -->
-  <div class="page-header">
-    <div>
-      <div class="page-title" id="page-title"><em>Search, preview and download Transaction PDFs</em></div>
-    </div>
-  </div>
-
   <!-- Filter bar -->
   <div class="filter-bar">
     <div class="filter-group" id="fg-trantype">

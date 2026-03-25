@@ -123,10 +123,6 @@ function switchPage(pageId) {
   currentPage = pageId;
   const cfg = PAGE_CONFIG[pageId];
 
-  // Title / subtitle
-  document.getElementById('page-title').innerHTML = cfg.title;
-  document.getElementById('page-sub').textContent  = cfg.sub;
-
   // Search button label
   document.getElementById('btn-search-label').textContent = cfg.searchLabel;
 
@@ -206,7 +202,7 @@ async function doSearch() {
       if (!data.success) throw new Error(data.error || 'Unknown error');
 
       const typeLabel = typeCfg.typeLabel || typeKey;
-      const items = (data.invoices || []).map(inv => ({ ...inv, _typeLabel: typeLabel }));
+      const items = (data.invoices || []).map(inv => ({ ...inv, _typeLabel: typeLabel, _typeKey: typeKey }));
       allInvoices = allInvoices.concat(items);
     }
 
@@ -547,10 +543,13 @@ function renderTable(list) {
     renderCreditMemoRow,
     renderInvoiceGroupRow
   };
-  const rowRenderer = renderers[cfg.rowRendererKey];
+  const defaultRenderer = renderers[cfg.rowRendererKey];
 
   list.forEach((item) => {
     rowStatus[item.id] = 'pending';
+    // Use per-item renderer when items carry their own _typeKey (mixed-type search)
+    const itemCfg = item._typeKey ? PAGE_CONFIG[item._typeKey] : null;
+    const rowRenderer = (itemCfg ? renderers[itemCfg.rowRendererKey] : null) || defaultRenderer;
     const tr = rowRenderer(item);
     tbody.appendChild(tr);
   });
@@ -846,7 +845,7 @@ async function runWithConcurrency(tasks, limit, onTaskDone) {
    DOWNLOAD ONE PDF  →  action=getPDF
 ───────────────────────────────────────── */
 async function downloadOnePDF(inv) {
-  const url = BASE_URL + '&action=getPDF&id=' + inv.id + '&tranid=' + encodeURIComponent(inv.tranId) + '&type=' + encodeURIComponent(currentPage);
+  const url = BASE_URL + '&action=getPDF&id=' + inv.id + '&tranid=' + encodeURIComponent(inv.tranId) + '&type=' + encodeURIComponent(inv._typeKey || currentPage);
   const resp = await fetch(url);
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   const ct = resp.headers.get('Content-Type') || '';
