@@ -256,13 +256,20 @@ function msToggle(key) {
     Object.keys(MS_STATE).forEach(k => { if (k !== key) msClose(k); });
     state.open = true;
     wrap.classList.add('open');
+    const dd = document.getElementById(\`ms-\${key}-dropdown\`);
+    dd.style.display = 'block';
+    dd.style.visibility = 'visible';
     document.getElementById(\`ms-\${key}-search\`).focus();
   }
 }
 
 function msClose(key) {
   MS_STATE[key].open = false;
-  document.getElementById(\`ms-\${key}-wrap\`).classList.remove('open');
+  const wrap = document.getElementById(\`ms-\${key}-wrap\`);
+  wrap.classList.remove('open');
+  const dd = document.getElementById(\`ms-\${key}-dropdown\`);
+  dd.style.display = 'none';
+  dd.style.visibility = 'hidden';
   document.getElementById(\`ms-\${key}-search\`).value = '';
   msFilter(key); // reset filter
 }

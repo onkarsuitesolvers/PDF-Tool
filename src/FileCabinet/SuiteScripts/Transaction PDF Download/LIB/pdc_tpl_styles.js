@@ -691,9 +691,10 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
   background: var(--card); border: 1.5px solid var(--border);
   border-radius: 12px; box-shadow: 0 8px 32px #0D4A4A18;
   z-index: 300; overflow: hidden;
-  display: none;
+  display: none !important;
+  visibility: hidden;
 }
-.ms-wrap.open .ms-dropdown { display: block; }
+.ms-wrap.open .ms-dropdown { display: block !important; visibility: visible; }
 .ms-search-wrap {
   padding: 8px 10px; border-bottom: 1px solid var(--border);
   background: #F7FBFB;
@@ -730,7 +731,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
   width: 14px; height: 14px; flex-shrink: 0;
   accent-color: var(--teal-mid); cursor: pointer;
 }
-.ms-option-label { flex: 1; word-break: break-word; }
+.ms-option-label { flex: 1; word-break: break-word; text-align: left; }
 .ms-option-sub { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
 .ms-footer {
   padding: 7px 12px; border-top: 1px solid var(--border);
