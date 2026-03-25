@@ -687,7 +687,8 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
   border: 1px solid var(--border);
 }
 .ms-dropdown {
-  position: absolute; top: calc(100% + 5px); left: 0; right: 0;
+  position: absolute; top: calc(100% + 5px); left: 0;
+  min-width: 100%; width: max-content; max-width: 340px;
   background: var(--card); border: 1.5px solid var(--border);
   border-radius: 12px; box-shadow: 0 8px 32px #0D4A4A18;
   z-index: 300; overflow: hidden;
@@ -730,7 +731,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
   width: 14px; height: 14px; flex-shrink: 0;
   accent-color: var(--teal-mid); cursor: pointer;
 }
-.ms-option-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-option-label { flex: 1; white-space: nowrap; }
 .ms-option-sub { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
 .ms-footer {
   padding: 7px 12px; border-top: 1px solid var(--border);
