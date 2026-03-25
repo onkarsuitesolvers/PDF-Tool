@@ -652,7 +652,7 @@ function renderInvoiceGroupRow(inv) {
     <td><span class="tran-id" style="color:var(--amber)">\${escHtml(inv.tranId)}</span></td>
     <td><div class="cust-cell"><div class="cust-av" style="background:#FEF0E0;color:#A07030">\${escHtml(initials)}</div>\${escHtml(inv.customer)}</div></td>
     <td>\${escHtml(inv.date || '—')}</td>
-    <td>${escHtml(inv.dueDate || '—')}</td>
+    <td>\${escHtml(inv.dueDate || '—')}</td>
     <td><span class="amount">\${amt}</span></td>
     <td><span class="badge-status \${grpStatusClass(inv.statusCode)}">\${escHtml(inv.status || '—')}</span></td>
     <td>
