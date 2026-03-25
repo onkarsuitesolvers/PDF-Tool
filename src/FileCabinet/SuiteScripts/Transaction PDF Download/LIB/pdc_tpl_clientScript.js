@@ -128,9 +128,7 @@ function switchPage(pageId) {
   // Search button label
   document.getElementById('btn-search-label').textContent = cfg.searchLabel;
 
-  // Status multiselect
   const hideFilters = cfg.hideFilters || [];
-  updateStatusOptions();
 
   // Show/hide status and subsidiary filter groups
   document.getElementById('fg-status').style.display     = hideFilters.includes('status')     ? 'none' : '';
@@ -159,9 +157,15 @@ function switchPage(pageId) {
 ───────────────────────────────────────── */
 function onTranTypeSelectionChange() {
   const sel = msGetValues('trantype');
-  // Use first selected type's config, or default to invoices when none selected
+  // Use first selected type's page layout, or default to invoices when none selected
   const pageId = sel.length > 0 ? sel[0] : 'invoices';
   switchPage(pageId);
+
+  // When multiple types selected, show subsidiary unless ALL selected types hide it
+  const types = sel.length > 0 ? sel : Object.keys(PAGE_CONFIG);
+  const allHideSub = types.every(t => (PAGE_CONFIG[t].hideFilters || []).includes('subsidiary'));
+  document.getElementById('fg-subsidiary').style.display = allHideSub ? 'none' : '';
+
   updateStatusOptions();
 }
 
@@ -173,8 +177,12 @@ function updateStatusOptions() {
     const cfg = PAGE_CONFIG[t];
     if (cfg && cfg.statusOptions) allOptions = allOptions.concat(cfg.statusOptions);
   });
-  MS_STATE['status'].selected.clear();
+  // Preserve selected statuses that are still valid in the new option set
+  const validIds = new Set(allOptions.map(o => String(o.id)));
+  const toRemove = [...MS_STATE['status'].selected].filter(id => !validIds.has(id));
+  toRemove.forEach(id => MS_STATE['status'].selected.delete(id));
   msSetOptions('status', allOptions);
+  msUpdateTrigger('status');
 }
 
 /* ─────────────────────────────────────────
