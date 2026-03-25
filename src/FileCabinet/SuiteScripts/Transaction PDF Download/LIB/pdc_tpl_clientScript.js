@@ -56,10 +56,9 @@ const PAGE_CONFIG = {
     tableMeta:   'transactions',
     typeLabel:   'Invoice',
     statusOptions: [
-      { value: '',        label: 'All Statuses' },
-      { value: 'open',    label: 'Open / Partial' },
-      { value: 'paid',    label: 'Paid in Full' },
-      { value: 'overdue', label: 'Overdue' }
+      { id: 'CustInvc:A', label: 'Invoice: Open' },
+      { id: 'CustInvc:B', label: 'Invoice: Partially Paid' },
+      { id: 'CustInvc:D', label: 'Invoice: Paid in Full' }
     ],
     theadHTML: \`<tr>
       <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
@@ -80,9 +79,8 @@ const PAGE_CONFIG = {
     tableMeta:   'transactions',
     typeLabel:   'Credit Memo',
     statusOptions: [
-      { value: '',        label: 'All Statuses' },
-      { value: 'open',    label: 'Open' },
-      { value: 'applied', label: 'Fully Applied' }
+      { id: 'CustCred:A', label: 'Credit Memo: Open' },
+      { id: 'CustCred:B', label: 'Credit Memo: Fully Applied' }
     ],
     theadHTML: \`<tr>
       <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
@@ -102,11 +100,15 @@ const PAGE_CONFIG = {
     emptySub:    'Invoice groups must be created before they appear here',
     tableMeta:   'transactions',
     typeLabel:   'Invoice Group',
-    statusOptions: [],
-    hideFilters: ['status', 'subsidiary'],
+    statusOptions: [
+      { id: 'OPEN',     label: 'Invoice Group: Open' },
+      { id: 'PAIDPART', label: 'Invoice Group: Partially Paid' },
+      { id: 'PAIDFULL', label: 'Invoice Group: Paid in Full' }
+    ],
+    hideFilters: ['subsidiary'],
     theadHTML: \`<tr>
       <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
-      <th>Type</th><th>Group ID</th><th>Customer</th><th>Date</th>
+      <th>Type</th><th>Group ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
       <th>Amount Due</th><th>Status</th><th>DL Status</th>
     </tr>\`,
     rowRendererKey: 'renderInvoiceGroupRow',
@@ -126,12 +128,9 @@ function switchPage(pageId) {
   // Search button label
   document.getElementById('btn-search-label').textContent = cfg.searchLabel;
 
-  // Status dropdown
-  const sel        = document.getElementById('f-status');
+  // Status multiselect
   const hideFilters = cfg.hideFilters || [];
-  sel.innerHTML = cfg.statusOptions.map(o =>
-    \`<option value="\${o.value}">\${o.label}</option>\`
-  ).join('');
+  updateStatusOptions();
 
   // Show/hide status and subsidiary filter groups
   document.getElementById('fg-status').style.display     = hideFilters.includes('status')     ? 'none' : '';
@@ -163,6 +162,19 @@ function onTranTypeSelectionChange() {
   // Use first selected type's config, or default to invoices when none selected
   const pageId = sel.length > 0 ? sel[0] : 'invoices';
   switchPage(pageId);
+  updateStatusOptions();
+}
+
+function updateStatusOptions() {
+  const selTypes = msGetValues('trantype');
+  const types = selTypes.length > 0 ? selTypes : Object.keys(PAGE_CONFIG);
+  let allOptions = [];
+  types.forEach(t => {
+    const cfg = PAGE_CONFIG[t];
+    if (cfg && cfg.statusOptions) allOptions = allOptions.concat(cfg.statusOptions);
+  });
+  MS_STATE['status'].selected.clear();
+  msSetOptions('status', allOptions);
 }
 
 /* ─────────────────────────────────────────
@@ -192,7 +204,7 @@ async function doSearch() {
         dateTo:     document.getElementById('f-dateTo').value,
         customer:   msGetValues('customer').join(','),
         subsidiary: msGetValues('subsidiary').join(','),
-        status:     document.getElementById('f-status').value,
+        status:     msGetValues('status').join(','),
         tranId:     (document.getElementById('f-tranId').value || '').trim()
       });
 
@@ -230,7 +242,8 @@ async function doSearch() {
 const MS_STATE = {
   trantype:   { options: [], selected: new Set(), open: false },
   customer:   { options: [], selected: new Set(), open: false },
-  subsidiary: { options: [], selected: new Set(), open: false }
+  subsidiary: { options: [], selected: new Set(), open: false },
+  status:     { options: [], selected: new Set(), open: false }
 };
 
 function msToggle(key) {
@@ -289,7 +302,7 @@ function msRenderList(key, options) {
     return \`<div class="ms-option\${isSel ? ' selected' : ''}" onclick="msToggleOption('\${key}','\${o.id}',this)">
       <input type="checkbox" \${isSel ? 'checked' : ''} onclick="event.stopPropagation();msToggleOption('\${key}','\${o.id}',this.closest('.ms-option'))"/>
       <span class="ms-option-label">\${escHtml(o.label)}</span>
-      \${key === 'trantype' ? '' : \`<span class="ms-option-sub">#\${o.id}</span>\`}
+      \${(key === 'trantype' || key === 'status') ? '' : \`<span class="ms-option-sub">#\${o.id}</span>\`}
     </div>\`;
   }).join('');
 }
@@ -334,7 +347,7 @@ function msUpdateTrigger(key) {
     const ph = document.createElement('span');
     ph.className = 'ms-placeholder';
     ph.id = \`ms-\${key}-placeholder\`;
-    ph.textContent = key === 'customer' ? 'All Customers' : key === 'trantype' ? 'All Transaction Types' : 'All Subsidiaries';
+    ph.textContent = key === 'customer' ? 'All Customers' : key === 'trantype' ? 'All Transaction Types' : key === 'status' ? 'All Statuses' : 'All Subsidiaries';
     trigger.insertBefore(ph, arrow);
     return;
   }
@@ -396,6 +409,9 @@ function msGetValues(key) {
   // Populate multiselect dropdowns from server-embedded data
   msSetOptions('customer',   __LOOKUPS__.customers    || []);
   msSetOptions('subsidiary', __LOOKUPS__.subsidiaries || []);
+
+  // Populate status multiselect with all status options by default
+  updateStatusOptions();
 })();
 
 function fmtDate(d) { return d.toISOString().slice(0, 10); }
@@ -636,6 +652,7 @@ function renderInvoiceGroupRow(inv) {
     <td><span class="tran-id" style="color:var(--amber)">\${escHtml(inv.tranId)}</span></td>
     <td><div class="cust-cell"><div class="cust-av" style="background:#FEF0E0;color:#A07030">\${escHtml(initials)}</div>\${escHtml(inv.customer)}</div></td>
     <td>\${escHtml(inv.date || '—')}</td>
+    <td>${escHtml(inv.dueDate || '—')}</td>
     <td><span class="amount">\${amt}</span></td>
     <td><span class="badge-status \${grpStatusClass(inv.statusCode)}">\${escHtml(inv.status || '—')}</span></td>
     <td>
@@ -668,8 +685,8 @@ function cmStatusClass(code) {
   return 'bs-other';
 }
 function grpStatusClass(code) {
-  if (code === 'BILLED') return 'bs-paid'; // Billed/Closed
-  if (code === 'OPEN')   return 'bs-open'; // Open
+  if (code === 'PAIDFULL' || code === 'BILLED') return 'bs-paid';
+  if (code === 'OPEN' || code === 'PAIDPART')   return 'bs-open';
   return 'bs-other';
 }
 

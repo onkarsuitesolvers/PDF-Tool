@@ -26,11 +26,17 @@ define(
     });
     conditions.unshift("t.recordtype = 'creditmemo'", "t.voided = 'F'");
 
-    // Credit Memo status: A = Open, B = Fully Applied
-    if (p.status === 'open') {
-      conditions.push("t.status = 'A'");
-    } else if (p.status === 'applied') {
-      conditions.push("t.status = 'B'");
+    // Status filter (comma-separated full status codes, e.g. CustCred:A,CustCred:B)
+    if (p.status) {
+      const allCodes = p.status.split(',').map(s => s.trim()).filter(Boolean);
+      const cmCodes = allCodes.filter(c => c.startsWith('CustCred:'));
+      if (cmCodes.length === 1) {
+        conditions.push("t.status = ?");
+        params.push(cmCodes[0]);
+      } else if (cmCodes.length > 1) {
+        conditions.push("t.status IN (" + cmCodes.map(() => '?').join(',') + ")");
+        params.push(...cmCodes);
+      }
     }
 
     const sql = `

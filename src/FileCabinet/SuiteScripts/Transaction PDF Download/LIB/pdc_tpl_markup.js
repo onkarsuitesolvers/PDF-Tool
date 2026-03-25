@@ -109,12 +109,26 @@ define([], () => {
     </div>
     <div class="filter-group" id="fg-status">
       <div class="filter-label">Status</div>
-      <select class="filter-select" id="f-status">
-        <option value="">All Statuses</option>
-        <option value="open">Open / Partial</option>
-        <option value="paid">Paid in Full</option>
-        <option value="overdue">Overdue</option>
-      </select>
+      <div class="ms-wrap" id="ms-status-wrap">
+        <div class="ms-trigger" id="ms-status-trigger" onclick="msToggle('status')">
+          <span class="ms-placeholder" id="ms-status-placeholder">All Statuses</span>
+          <svg class="ms-arrow" width="10" height="7" fill="none" viewBox="0 0 10 7"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </div>
+        <div class="ms-dropdown" id="ms-status-dropdown">
+          <div class="ms-search-wrap">
+            <div class="ms-search-box">
+              <svg class="ms-search-icon" width="13" height="13" fill="none" viewBox="0 0 13 13"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M10 10l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <input class="ms-search" id="ms-status-search" placeholder="Search statuses…" oninput="msFilter('status')" onclick="event.stopPropagation()"/>
+            </div>
+          </div>
+          <div class="ms-list" id="ms-status-list">
+          </div>
+          <div class="ms-footer">
+            <span class="ms-footer-count" id="ms-status-count">0 selected</span>
+            <span class="ms-footer-clear" onclick="msClear('status')">Clear all</span>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="filter-divider"></div>
     <button type="button" class="btn btn-primary" onclick="doSearch()" id="btn-search" style="align-self:flex-end">
