@@ -117,7 +117,7 @@ body::before {
 .filter-group { display: flex; flex-direction: column; gap: 5px; }
 .filter-label {
   font-size: 12px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.7px; color: var(--text-muted);
+  letter-spacing: 0.7px; color: var(--text-muted); text-align: left;
 }
 .filter-input, .filter-select {
   padding: 9px 12px; border: 1.5px solid var(--border);
