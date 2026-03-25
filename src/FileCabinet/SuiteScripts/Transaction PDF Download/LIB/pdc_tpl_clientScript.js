@@ -123,10 +123,6 @@ function switchPage(pageId) {
   currentPage = pageId;
   const cfg = PAGE_CONFIG[pageId];
 
-  // Title / subtitle
-  document.getElementById('page-title').innerHTML = cfg.title;
-  document.getElementById('page-sub').textContent  = cfg.sub;
-
   // Search button label
   document.getElementById('btn-search-label').textContent = cfg.searchLabel;
 
