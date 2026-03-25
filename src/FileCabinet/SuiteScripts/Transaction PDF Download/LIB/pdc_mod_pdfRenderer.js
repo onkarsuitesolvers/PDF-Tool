@@ -11,8 +11,8 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 define(
-  ['N/render', 'N/record', 'N/runtime'],
-  (render, record, runtime) => {
+  ['N/render', 'N/record', 'N/runtime', 'N/log'],
+  (render, record, runtime, log) => {
 
   /**
    * Serve a single PDF for a transaction or invoice group.
@@ -30,9 +30,10 @@ define(
       // does not support them. Use the Advanced PDF/HTML template with a TemplateRenderer.
       const script     = runtime.getCurrentScript();
       const templateId = script.getParameter({ name: 'custscript_pdc_invgrp_tpl_id' }) || 462;
+      log.debug({ title: 'InvoiceGroup PDF', details: `id=${id}, templateId=${templateId}` });
       const groupRecord = record.load({ type: 'invoicegroup', id: id });
       const renderer    = render.create();
-      renderer.setTemplateById(templateId);
+      renderer.setTemplateById({ id: templateId });
       renderer.addRecord({ templateName: 'record', record: groupRecord });
       pdfFile = renderer.renderAsPdf();
     } else {
