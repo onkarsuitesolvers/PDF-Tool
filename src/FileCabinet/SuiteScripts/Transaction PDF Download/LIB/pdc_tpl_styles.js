@@ -693,6 +693,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
   z-index: 300; overflow: hidden;
   display: none !important;
   visibility: hidden;
+  text-align: left; direction: ltr;
 }
 .ms-wrap.open .ms-dropdown { display: block !important; visibility: visible; }
 .ms-search-wrap {
@@ -720,10 +721,11 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
 .ms-list::-webkit-scrollbar-track { background: var(--surface); border-radius: 5px; }
 .ms-list::-webkit-scrollbar-thumb { background: var(--teal-mid); border-radius: 5px; }
 .ms-option {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px;
   padding: 8px 12px; cursor: pointer;
   font-size: 14.5px; color: var(--text-primary);
   transition: background 0.12s; user-select: none;
+  direction: ltr; text-align: left;
 }
 .ms-option:hover { background: var(--teal-pale); }
 .ms-option.selected { background: #EBF7F7; }
