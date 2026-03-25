@@ -536,12 +536,6 @@ async function downloadSingle(id, tranId) {
 }
 
 /* ─────────────────────────────────────────
-   SEARCH (legacy alias — kept for any
-   inline onclick="searchInvoices()" calls)
-───────────────────────────────────────── */
-function searchInvoices() { doSearch(); }
-
-/* ─────────────────────────────────────────
    RENDER TABLE  (dispatches to row renderer)
 ───────────────────────────────────────── */
 function renderTable(list) {
