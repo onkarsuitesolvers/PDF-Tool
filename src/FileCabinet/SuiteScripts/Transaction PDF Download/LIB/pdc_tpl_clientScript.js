@@ -765,19 +765,43 @@ async function pickFolder() {
     dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
     applyFolderUI(dirHandle.name);
   } catch (e) {
-    if (e.name !== 'AbortError') {
+    if (e.name === 'AbortError') return;
+    if (e.name === 'SecurityError' || e.message.includes('system files')) {
+      alert('That folder cannot be opened because it contains system files.\\nPlease choose a different folder or create a new subfolder inside it.');
+      try {
+        dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        applyFolderUI(dirHandle.name);
+      } catch (_) { /* user cancelled retry */ }
     }
   }
 }
 
-function pickQuick(el, folderName) {
+// Map quick-pick names to well-known File System Access API directory tokens
+const WELL_KNOWN_DIRS = {
+  'Downloads':            'downloads',
+  'Desktop':              'desktop',
+  'Documents/Invoices':   'documents'
+};
+
+async function pickQuick(el, folderName) {
   document.querySelectorAll('.qf').forEach(q => q.classList.remove('active'));
   el.classList.add('active');
-  // In real usage showDirectoryPicker would open, here we show chosen name as hint
   if (!fsSAPIEnabled) return;
-  // For demo purposes set a display name (actual picker is required for FS API writes)
-  dirHandle = { name: folderName, _quickPick: true };
-  applyFolderUI(folderName);
+
+  try {
+    const startIn = WELL_KNOWN_DIRS[folderName] || 'downloads';
+    dirHandle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: startIn });
+    applyFolderUI(dirHandle.name);
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    if (e.name === 'SecurityError' || e.message.includes('system files')) {
+      alert('That folder cannot be opened because it contains system files.\\nPlease choose a subfolder or a different location.');
+      try {
+        dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        applyFolderUI(dirHandle.name);
+      } catch (_) { /* user cancelled retry */ }
+    }
+  }
 }
 
 function applyFolderUI(name) {
@@ -839,6 +863,16 @@ async function downloadOnePDF(inv) {
    handle can be the root dir OR a date subfolder handle
 ───────────────────────────────────────── */
 async function writePDFToFolder(handle, filename, buffer) {
+  if (!handle || !handle.getFileHandle) {
+    // Fallback: trigger browser download if FS API handle is not available
+    const blob = new Blob([buffer], { type: 'application/pdf' });
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return;
+  }
   const fileHandle = await handle.getFileHandle(filename, { create: true });
   const writable   = await fileHandle.createWritable();
   await writable.write(buffer);
