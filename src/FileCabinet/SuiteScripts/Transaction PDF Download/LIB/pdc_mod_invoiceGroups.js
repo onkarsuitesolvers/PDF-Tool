@@ -26,16 +26,30 @@ define(
       subsidiaryCol: null,   // InvoiceGroup has no subsidiary column
       tranIdCol:     'InvoiceGroup.invoicegroupnumber'
     });
+    // Status filter (comma-separated codes, e.g. OPEN,PAIDPART,PAIDFULL)
+    if (p.status) {
+      const allCodes = p.status.split(',').map(s => s.trim()).filter(Boolean);
+      const grpCodes = allCodes.filter(c => !c.includes(':'));
+      if (grpCodes.length === 1) {
+        conditions.push("InvoiceGroup.status = ?");
+        params.push(grpCodes[0]);
+      } else if (grpCodes.length > 1) {
+        conditions.push("InvoiceGroup.status IN (" + grpCodes.map(() => '?').join(',') + ")");
+        params.push(...grpCodes);
+      }
+    }
+
     if (conditions.length === 0) conditions.push('1=1');
 
     // Positional columns: 0=id, 1=invoicegroupnumber, 2=customername,
-    //                      3=trandate, 4=amountdue, 5=statuscode
+    //                      3=trandate, 4=duedate, 5=amountdue, 6=statuscode
     const sql = `
       SELECT
         BUILTIN_RESULT.TYPE_INTEGER(InvoiceGroup.id)                                                       AS id,
         BUILTIN_RESULT.TYPE_STRING(InvoiceGroup.invoicegroupnumber)                                        AS invoicegroupnumber,
         BUILTIN_RESULT.TYPE_STRING(BUILTIN.DF(InvoiceGroup.customer))                                      AS customername,
         BUILTIN_RESULT.TYPE_DATE(InvoiceGroup.trandate)                                                    AS trandate,
+        BUILTIN_RESULT.TYPE_DATE(InvoiceGroup.duedate)                                                     AS duedate,
         BUILTIN_RESULT.TYPE_CURRENCY(InvoiceGroup.amountdue, BUILTIN.CURRENCY(InvoiceGroup.amountdue))     AS amountdue,
         BUILTIN_RESULT.TYPE_STRING(InvoiceGroup.status)                                                    AS statuscode
       FROM InvoiceGroup
@@ -50,9 +64,11 @@ define(
     paged.iterator().each((page) => {
       page.value.data.iterator().each((row) => {
         const v          = row.value.values;   // positional array
-        const statusCode = (v[5] || '').toString().toUpperCase();
-        const statusLabel = statusCode === 'BILLED' ? 'Billed'
-                          : statusCode === 'OPEN'   ? 'Open'
+        const statusCode = (v[6] || '').toString().toUpperCase();
+        const statusLabel = statusCode === 'PAIDFULL' ? 'Paid in Full'
+                          : statusCode === 'PAIDPART' ? 'Partially Paid'
+                          : statusCode === 'OPEN'     ? 'Open'
+                          : statusCode === 'BILLED'   ? 'Billed'
                           : statusCode;
 
         groups.push({
@@ -60,7 +76,8 @@ define(
           tranId:     v[1] || `GRP-${v[0]}`,
           customer:   v[2] || 'Unknown',
           date:       v[3] || '',
-          amount:     v[4],
+          dueDate:    v[4] || '',
+          amount:     v[5],
           currency:   '',
           status:     statusLabel,
           statusCode: statusCode

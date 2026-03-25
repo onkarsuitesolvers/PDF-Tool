@@ -26,11 +26,17 @@ define(
     });
     conditions.unshift("t.recordtype = 'invoice'", "t.voided = 'F'");
 
-    // Status filter
-    if (p.status === 'open') {
-      conditions.push("t.status = 'C'");
-    } else if (p.status === 'overdue') {
-      conditions.push("t.status IN ('A','B') AND t.duedate < SYSDATE");
+    // Status filter (comma-separated full status codes, e.g. CustInvc:A,CustInvc:B)
+    if (p.status) {
+      const allCodes = p.status.split(',').map(s => s.trim()).filter(Boolean);
+      const invCodes = allCodes.filter(c => c.startsWith('CustInvc:'));
+      if (invCodes.length === 1) {
+        conditions.push("t.status = ?");
+        params.push(invCodes[0]);
+      } else if (invCodes.length > 1) {
+        conditions.push("t.status IN (" + invCodes.map(() => '?').join(',') + ")");
+        params.push(...invCodes);
+      }
     }
 
     const sql = `
