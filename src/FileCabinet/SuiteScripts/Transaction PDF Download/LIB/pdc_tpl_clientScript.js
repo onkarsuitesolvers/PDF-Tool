@@ -34,6 +34,7 @@ let invoices      = [];   // all loaded invoices
 let dirHandle     = null; // FileSystemDirectoryHandle (Chrome/Edge)
 let fsSAPIEnabled = false;
 let cancelled     = false;
+let abortCtrl     = null;   // AbortController for in-flight fetches
 let paused        = false;
 let downloading   = false;
 let dlStartTime   = 0;
@@ -904,20 +905,34 @@ function applyFolderUI(name) {
 async function runWithConcurrency(tasks, limit, onTaskDone) {
   const queue  = [...tasks];
   const active = new Set();
+  let resolved = false;
 
   return new Promise((resolve) => {
+    function finish() {
+      if (resolved) return;
+      resolved = true;
+      resolve();
+    }
+
     function dispatch() {
+      if (cancelled) { finish(); return; }
       while (active.size < limit && queue.length > 0 && !cancelled) {
         const task = queue.shift();
         const p = task().then((result) => {
           active.delete(p);
-          onTaskDone(result);
-          if ((queue.length === 0 || cancelled) && active.size === 0) resolve();
-          else if (!cancelled) dispatch();
+          if (!cancelled) onTaskDone(result);
+          if (cancelled) { finish(); return; }
+          if (queue.length === 0 && active.size === 0) finish();
+          else dispatch();
+        }).catch(() => {
+          active.delete(p);
+          if (cancelled) { finish(); return; }
+          if (queue.length === 0 && active.size === 0) finish();
+          else dispatch();
         });
         active.add(p);
       }
-      if (active.size === 0 && (queue.length === 0 || cancelled)) resolve();
+      if (active.size === 0 && (queue.length === 0 || cancelled)) finish();
     }
     dispatch();
   });
@@ -928,7 +943,7 @@ async function runWithConcurrency(tasks, limit, onTaskDone) {
 ───────────────────────────────────────── */
 async function downloadOnePDF(inv) {
   const url = BASE_URL + '&action=getPDF&id=' + inv.id + '&tranid=' + encodeURIComponent(inv.tranId) + '&type=' + encodeURIComponent(inv._typeKey || currentPage);
-  const resp = await fetch(url);
+  const resp = await fetch(url, { signal: abortCtrl ? abortCtrl.signal : undefined });
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   const ct = resp.headers.get('Content-Type') || '';
   if (!ct.includes('pdf') && !ct.includes('octet')) {
@@ -1053,6 +1068,8 @@ function togglePause() {
 ───────────────────────────────────────── */
 function cancelDownload() {
   cancelled = true;
+  paused = false;
+  if (abortCtrl) abortCtrl.abort();
 }
 
 /* ─────────────────────────────────────────
@@ -1077,6 +1094,7 @@ async function startDownload() {
   successCount = 0;
   failedCount  = 0;
   cancelled    = false;
+  abortCtrl    = new AbortController();
   paused       = false;
   downloading  = true;
   dlStartTime  = Date.now();
