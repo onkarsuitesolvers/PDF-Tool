@@ -58,8 +58,9 @@ define(
 
     let invoices = [];
     try {
-      const paged    = query.runSuiteQLPaged({ query: sql, params, pageSize: 1000 });
-      invoices = qh.collectPagedResults(paged, (row) => ({
+      const resultSet = query.runSuiteQL({ query: sql, params });
+      const rows = resultSet.asMappedResults();
+      invoices = rows.map((row) => ({
         id:         row.id,
         tranId:     row.tranid || `INV-${row.id}`,
         customer:   row.customername || 'Unknown',

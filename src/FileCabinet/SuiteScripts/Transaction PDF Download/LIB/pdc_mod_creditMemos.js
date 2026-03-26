@@ -58,8 +58,9 @@ define(
 
     let memos = [];
     try {
-      const paged = query.runSuiteQLPaged({ query: sql, params, pageSize: 1000 });
-      memos = qh.collectPagedResults(paged, (row) => ({
+      const resultSet = query.runSuiteQL({ query: sql, params });
+      const rows = resultSet.asMappedResults();
+      memos = rows.map((row) => ({
         id:         row.id,
         tranId:     row.tranid || `CM-${row.id}`,
         customer:   row.customername || 'Unknown',
