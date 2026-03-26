@@ -529,17 +529,20 @@ function updatePreview() {
 /* ─────────────────────────────────────────
    ROW STATUS
 ───────────────────────────────────────── */
-function setRowStatus(id, status) {
+function setRowStatus(id, status, errMsg) {
   rowStatus[id] = status;
   const dot = document.getElementById('row-dot-' + id);
   const lbl = document.getElementById('row-lbl-' + id);
   const row = document.getElementById('row-' + id);
   if (!dot) return;
   dot.className = 'status-dot dot-' + status;
-  if (lbl) lbl.textContent = status === 'ok'     ? '✓ Saved'
-                            : status === 'err'    ? '✗ Failed'
-                            : status === 'active' ? 'Downloading…'
-                            : 'Pending';
+  if (lbl) {
+    lbl.textContent = status === 'ok'     ? '✓ Saved'
+                    : status === 'err'    ? '✗ Failed'
+                    : status === 'active' ? 'Downloading…'
+                    : 'Pending';
+    lbl.title = (status === 'err' && errMsg) ? errMsg : '';
+  }
   if (row) {
     row.className = status === 'ok'     ? 'row-ok'
                   : status === 'err'    ? 'row-err'
@@ -552,7 +555,7 @@ function setRowStatus(id, status) {
    SINGLE-ROW ACTIONS  (Preview / Download)
 ───────────────────────────────────────── */
 async function previewPDF(id, tranId) {
-  const inv = invoices.find(i => i.id === id);
+  const inv = invoices.find(i => String(i.id) === String(id));
   if (!inv) return;
   try {
     const buffer = await downloadOnePDF(inv);
@@ -564,8 +567,8 @@ async function previewPDF(id, tranId) {
 }
 
 async function downloadSingle(id, tranId) {
-  const inv = invoices.find(i => i.id === id);
-  if (!inv) return;
+  const inv = invoices.find(i => String(i.id) === String(id));
+  if (!inv) { console.error('[PDC] downloadSingle: inv not found for id=' + id); return; }
   setRowStatus(id, 'active');
   try {
     const buffer   = await downloadOnePDF(inv);
@@ -584,7 +587,8 @@ async function downloadSingle(id, tranId) {
 
     setRowStatus(id, 'ok');
   } catch (e) {
-    setRowStatus(id, 'err');
+    console.error('[PDC] downloadSingle failed for id=' + id, e);
+    setRowStatus(id, 'err', e.message);
   }
 }
 
@@ -1124,7 +1128,8 @@ async function startDownload() {
       setRowStatus(inv.id, 'ok');
       return { inv, ok: true, filename, kb };
     } catch (e) {
-      setRowStatus(inv.id, 'err');
+      console.error('[PDC] batch download failed for id=' + inv.id, e);
+      setRowStatus(inv.id, 'err', e.message);
       if (!skipErr) cancelled = true;
       return { inv, ok: false, error: e.message };
     }
