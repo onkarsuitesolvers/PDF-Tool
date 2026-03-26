@@ -25,7 +25,7 @@ define(
       customerCol:   't.entity',
       subsidiaryCol: 't.subsidiary'
     });
-    conditions.unshift("t.type = 'CustInvc'", "t.mainline = 'T'", "NVL(t.voided, 'F') = 'F'");
+    conditions.unshift("t.recordtype = 'invoice'", "t.voided = 'F'");
 
     // Status filter (comma-separated status codes, e.g. CustInvc:A,CustInvc:B)
     // Client pre-filters codes per type, so we use them directly without prefix checks
