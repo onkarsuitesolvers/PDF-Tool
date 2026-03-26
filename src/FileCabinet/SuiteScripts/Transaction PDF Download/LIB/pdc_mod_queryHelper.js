@@ -28,12 +28,11 @@ define(['N/log'], (log) => {
    * @param {number[]} ids
    */
   const pushIdFilter = (conditions, params, column, ids) => {
+    // Inline numeric IDs as literals — already validated as integers by parseIdList
     if (ids.length === 1) {
-      conditions.push(`${column} = ?`);
-      params.push(ids[0]);
+      conditions.push(`${column} = ${ids[0]}`);
     } else if (ids.length > 1) {
-      conditions.push(`${column} IN (${ids.map(() => '?').join(',')})`);
-      params.push(...ids);
+      conditions.push(`${column} IN (${ids.join(',')})`);
     }
   };
 
@@ -57,20 +56,21 @@ define(['N/log'], (log) => {
     const conditions = [];
     const params     = [];
 
-    // Date range
+    // Date range — inlined as literals because SuiteQL bind params
+    // with TO_DATE can return 0 rows even when the same literal query succeeds
     if (p.dateFrom) {
-      conditions.push(`${dateCol} >= TO_DATE(?, 'YYYY-MM-DD')`);
-      params.push(p.dateFrom);
+      const df = validateDateLiteral(p.dateFrom);
+      conditions.push(`${dateCol} >= TO_DATE('${df}', 'YYYY-MM-DD')`);
     }
     if (p.dateTo) {
-      conditions.push(`${dateCol} <= TO_DATE(?, 'YYYY-MM-DD')`);
-      params.push(p.dateTo);
+      const dt = validateDateLiteral(p.dateTo);
+      conditions.push(`${dateCol} <= TO_DATE('${dt}', 'YYYY-MM-DD')`);
     }
 
-    // Tran ID filter (exact or LIKE match)
+    // Tran ID filter (exact or LIKE match) — inlined as literal
     if (p.tranId && p.tranId.trim()) {
-      conditions.push(`${tranIdCol} LIKE ?`);
-      params.push('%' + p.tranId.trim() + '%');
+      const tid = p.tranId.trim().replace(/'/g, "''");
+      conditions.push(`${tranIdCol} LIKE '%${tid}%'`);
     }
 
     // Customer
@@ -112,6 +112,17 @@ define(['N/log'], (log) => {
   const writeJsonResponse = (response, payload) => {
     response.setHeader({ name: 'Content-Type', value: 'application/json' });
     response.write(JSON.stringify(payload));
+  };
+
+  /**
+   * Validate and return a date string in YYYY-MM-DD format.
+   * Throws if the value contains unexpected characters (prevents SQL injection).
+   * @param {string} val  e.g. '2025-12-26'
+   * @returns {string}
+   */
+  const validateDateLiteral = (val) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(val)) throw new Error('Invalid date format: ' + val);
+    return val;
   };
 
   /**
