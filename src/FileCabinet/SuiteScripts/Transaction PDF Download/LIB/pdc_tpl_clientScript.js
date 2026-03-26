@@ -1049,7 +1049,6 @@ function togglePause() {
 ───────────────────────────────────────── */
 function cancelDownload() {
   cancelled = true;
-  document.getElementById('btn-cancel').disabled = true;
 }
 
 /* ─────────────────────────────────────────

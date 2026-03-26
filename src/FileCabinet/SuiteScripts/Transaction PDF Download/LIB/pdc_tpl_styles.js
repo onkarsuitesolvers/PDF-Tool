@@ -575,8 +575,6 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
 }
 .ctrl-btn:hover { border-color: var(--teal-bright); color: var(--teal-mid); }
 .ctrl-pause { background: var(--amber-pale); border-color: #F0B87A; color: var(--amber); }
-.ctrl-cancel { background: var(--rose-pale); border-color: #E8AAAA; color: var(--rose); }
-.ctrl-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
 .speed-info {
   margin-left: auto; font-size: 12px; font-weight: 600;
   color: var(--text-muted); display: flex; align-items: center; gap: 5px;
