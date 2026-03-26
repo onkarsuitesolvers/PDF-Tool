@@ -26,19 +26,16 @@ define(
     });
     conditions.unshift("t.recordtype = 'invoice'", "t.voided = 'F'");
 
-    // Status filter (comma-separated full status codes, e.g. CustInvc:A,CustInvc:B)
+    // Status filter (comma-separated status codes, e.g. CustInvc:A,CustInvc:B)
+    // Client pre-filters codes per type, so we use them directly without prefix checks
     if (p.status) {
-      const allCodes = p.status.split(',').map(s => s.trim()).filter(Boolean);
-      const invCodes = allCodes.filter(c => c.startsWith('CustInvc:'));
-      if (invCodes.length === 1) {
+      const codes = p.status.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean);
+      if (codes.length === 1) {
         conditions.push("t.status = ?");
-        params.push(invCodes[0]);
-      } else if (invCodes.length > 1) {
-        conditions.push("t.status IN (" + invCodes.map(() => '?').join(',') + ")");
-        params.push(...invCodes);
-      } else if (allCodes.length > 0) {
-        // Status filters were selected but none apply to invoices — return no results
-        conditions.push("1=0");
+        params.push(codes[0]);
+      } else if (codes.length > 1) {
+        conditions.push("t.status IN (" + codes.map(() => '?').join(',') + ")");
+        params.push(...codes);
       }
     }
 

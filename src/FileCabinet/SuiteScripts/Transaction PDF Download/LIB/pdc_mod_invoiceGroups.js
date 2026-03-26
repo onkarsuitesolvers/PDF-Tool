@@ -27,18 +27,15 @@ define(
       tranIdCol:     'InvoiceGroup.invoicegroupnumber'
     });
     // Status filter (comma-separated codes, e.g. OPEN,PAIDPART,PAIDFULL)
+    // Client pre-filters codes per type, so we use them directly without prefix checks
     if (p.status) {
-      const allCodes = p.status.split(',').map(s => s.trim()).filter(Boolean);
-      const grpCodes = allCodes.filter(c => !c.includes(':'));
-      if (grpCodes.length === 1) {
+      const codes = p.status.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean);
+      if (codes.length === 1) {
         conditions.push("InvoiceGroup.status = ?");
-        params.push(grpCodes[0]);
-      } else if (grpCodes.length > 1) {
-        conditions.push("InvoiceGroup.status IN (" + grpCodes.map(() => '?').join(',') + ")");
-        params.push(...grpCodes);
-      } else if (allCodes.length > 0) {
-        // Status filters were selected but none apply to invoice groups — return no results
-        conditions.push("1=0");
+        params.push(codes[0]);
+      } else if (codes.length > 1) {
+        conditions.push("InvoiceGroup.status IN (" + codes.map(() => '?').join(',') + ")");
+        params.push(...codes);
       }
     }
 
