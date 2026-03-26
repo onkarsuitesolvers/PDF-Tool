@@ -31,10 +31,7 @@ define(
     // Client pre-filters codes per type, so we use them directly without prefix checks
     if (p.status) {
       const codes = p.status.split(',').map(s => qh.normalizeStatusCode(decodeURIComponent(s.trim()))).filter(Boolean);
-      if (codes.length === 1) {
-        conditions.push("t.status = ?");
-        params.push(codes[0]);
-      } else if (codes.length > 1) {
+      if (codes.length) {
         conditions.push("t.status IN (" + codes.map(() => '?').join(',') + ")");
         params.push(...codes);
       }

@@ -31,10 +31,7 @@ define(
     // Client pre-filters codes per type, so we use them directly without prefix checks
     if (p.status) {
       const codes = p.status.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean);
-      if (codes.length === 1) {
-        conditions.push("InvoiceGroup.status = ?");
-        params.push(codes[0]);
-      } else if (codes.length > 1) {
+      if (codes.length) {
         conditions.push("InvoiceGroup.status IN (" + codes.map(() => '?').join(',') + ")");
         params.push(...codes);
       }
