@@ -8,7 +8,11 @@
  *  serveInvoiceList, serveCreditMemoList, and serveInvoiceGroupList.
  * ─────────────────────────────────────────────────────────────────────────────
  */
-define(['N/log'], (log) => {
+define(['N/log', 'N/runtime'], (log, runtime) => {
+
+  const MAX_RESULTS   = 4000;   // hard cap — prevents governance exhaustion
+  const DEFAULT_PAGE  = 1000;   // rows per runSuiteQL call (max 5000)
+  const GOV_THRESHOLD = 500;    // stop pagination when remaining units drop below this
 
   /**
    * Parse a comma-separated parameter into an array of positive integers.
@@ -121,11 +125,19 @@ define(['N/log'], (log) => {
    * @returns {Object[]}
    */
   const runSuiteQLAll = (queryModule, sql, params, mapFn, pageSize) => {
-    const PAGE = pageSize || 5000;
+    const PAGE = pageSize || DEFAULT_PAGE;
     const results = [];
     let offset = 0;
+    let truncated = false;
 
     while (true) {
+      const remaining = runtime.getCurrentScript().getRemainingUsage();
+      if (remaining < GOV_THRESHOLD) {
+        log.audit({ title: 'PDC runSuiteQLAll', details: 'Stopping — governance remaining: ' + remaining + ', rows so far: ' + results.length });
+        truncated = true;
+        break;
+      }
+
       const pagedSql = sql + ` OFFSET ${offset} ROWS FETCH NEXT ${PAGE} ROWS ONLY`;
       const resultSet = queryModule.runSuiteQL({ query: pagedSql, params: params });
       const rows = resultSet.asMappedResults();
@@ -134,9 +146,15 @@ define(['N/log'], (log) => {
 
       if (rows.length < PAGE) break;
       offset += PAGE;
+
+      if (results.length >= MAX_RESULTS) {
+        log.audit({ title: 'PDC runSuiteQLAll', details: 'Max results cap reached: ' + results.length });
+        truncated = true;
+        break;
+      }
     }
 
-    return results;
+    return { results, truncated };
   };
 
   /**
@@ -150,10 +168,19 @@ define(['N/log'], (log) => {
    * @param {number}   [pageSize=5000]
    */
   const runSuiteQLAllRaw = (queryModule, sql, params, rowFn, pageSize) => {
-    const PAGE = pageSize || 5000;
+    const PAGE = pageSize || DEFAULT_PAGE;
     let offset = 0;
+    let totalCount = 0;
+    let truncated = false;
 
     while (true) {
+      const remaining = runtime.getCurrentScript().getRemainingUsage();
+      if (remaining < GOV_THRESHOLD) {
+        log.audit({ title: 'PDC runSuiteQLAllRaw', details: 'Stopping — governance remaining: ' + remaining + ', rows so far: ' + totalCount });
+        truncated = true;
+        break;
+      }
+
       const pagedSql = sql + ` OFFSET ${offset} ROWS FETCH NEXT ${PAGE} ROWS ONLY`;
       const resultSet = queryModule.runSuiteQL({ query: pagedSql, params: params });
 
@@ -164,9 +191,18 @@ define(['N/log'], (log) => {
         return true;
       });
 
+      totalCount += count;
       if (count < PAGE) break;
       offset += PAGE;
+
+      if (totalCount >= MAX_RESULTS) {
+        log.audit({ title: 'PDC runSuiteQLAllRaw', details: 'Max results cap reached: ' + totalCount });
+        truncated = true;
+        break;
+      }
     }
+
+    return { truncated };
   };
 
   /**

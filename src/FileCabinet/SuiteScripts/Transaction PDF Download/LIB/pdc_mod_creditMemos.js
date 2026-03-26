@@ -57,8 +57,9 @@ define(
     log.debug({ title: 'PDC creditMemos.serve finalQuery', details: 'SQL: ' + sql + ' | Params: ' + JSON.stringify(params) });
 
     let memos = [];
+    let truncated = false;
     try {
-      memos = qh.runSuiteQLAll(query, sql, params, (row) => ({
+      const result = qh.runSuiteQLAll(query, sql, params, (row) => ({
         id:         row.id,
         tranId:     row.tranid || `CM-${row.id}`,
         customer:   row.customername || 'Unknown',
@@ -69,7 +70,9 @@ define(
         status:     row.statuslabel || '',
         statusCode: row.statuscode  || ''
       }));
-      log.debug({ title: 'PDC creditMemos.serve result', details: 'count=' + memos.length });
+      memos     = result.results;
+      truncated = result.truncated;
+      log.debug({ title: 'PDC creditMemos.serve result', details: 'count=' + memos.length + ' truncated=' + truncated });
     } catch (e) {
       log.error({ title: 'PDC creditMemos.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });
       throw e;
@@ -78,6 +81,7 @@ define(
     qh.writeJsonResponse(response, {
       success:  true,
       count:    memos.length,
+      truncated,
       invoices: memos          // kept as "invoices" for client-side compatibility
     });
   };
