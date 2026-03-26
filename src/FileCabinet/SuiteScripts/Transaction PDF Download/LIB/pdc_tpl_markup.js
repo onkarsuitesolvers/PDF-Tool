@@ -457,9 +457,12 @@ define([], () => {
 
       </div><!-- /modal-body step 2 -->
 
-      <div class="modal-footer">
+      <div class="modal-footer" style="justify-content:space-between">
         <div style="font-size:12px;color:var(--text-muted)">
           Concurrent: <strong id="concur-val" style="color:var(--teal-mid)">5</strong> · Skip errors: <strong id="skiperr-disp" style="color:var(--teal-mid)">On</strong>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn btn-outline btn-sm" onclick="cancelDownload()">Stop Download</button>
         </div>
       </div>
     </div><!-- /step 2 -->
