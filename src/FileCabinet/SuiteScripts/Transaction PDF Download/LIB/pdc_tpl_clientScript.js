@@ -1147,8 +1147,7 @@ async function startDownload() {
   const elapsed = ((Date.now() - dlStartTime) / 1000).toFixed(1);
 
   if (cancelled) {
-    document.getElementById('dl-status-text').textContent = 'Stopped';
-    document.getElementById('dl-pulse').style.background = 'var(--rose)';
+    closeModal();
   } else {
     // Go to step 3
     const hasErrors = failedCount > 0;
