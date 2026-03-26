@@ -122,12 +122,34 @@ define(['N/log'], (log) => {
   const normalizeStatusCode = (code) =>
     code.replace(/^(CustInvc|CustCred)([A-Z])$/, '$1:$2');
 
+  /**
+   * Build a safe SQL IN-list literal for status codes.
+   *
+   * SuiteQL's transaction.status field does not work correctly with
+   * parameterised bind values (? placeholders) — queries return 0 rows even
+   * though the same SQL with literal strings succeeds.  This helper inlines
+   * the codes as quoted literals after strict validation so the values are
+   * safe to embed directly in SQL.
+   *
+   * @param {string[]} codes  Status codes, e.g. ['CustInvc:A','CustInvc:B']
+   * @returns {string}  e.g. "'CustInvc:A','CustInvc:B'"
+   * @throws {Error} if any code contains characters outside [A-Za-z0-9:_]
+   */
+  const statusInLiteral = (codes) => {
+    const safe = /^[A-Za-z0-9:_]+$/;
+    codes.forEach(c => {
+      if (!safe.test(c)) throw new Error('Invalid status code: ' + c);
+    });
+    return codes.map(c => "'" + c + "'").join(',');
+  };
+
   return {
     parseIdList,
     pushIdFilter,
     buildCommonFilters,
     collectPagedResults,
     writeJsonResponse,
-    normalizeStatusCode
+    normalizeStatusCode,
+    statusInLiteral
   };
 });

@@ -32,8 +32,7 @@ define(
     if (p.status) {
       const codes = p.status.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean);
       if (codes.length) {
-        conditions.push("InvoiceGroup.status IN (" + codes.map(() => '?').join(',') + ")");
-        params.push(...codes);
+        conditions.push("InvoiceGroup.status IN (" + qh.statusInLiteral(codes) + ")");
       }
     }
 
