@@ -215,8 +215,8 @@ define([], () => {
   <!-- Empty state -->
   <div class="empty-state" id="empty-state">
     <div class="empty-icon" id="empty-icon">🔎</div>
-    <div class="empty-text" id="empty-text">No invoices found</div>
-    <div class="empty-sub" id="empty-sub">Try adjusting your filters or broadening the date range</div>
+    <div class="empty-text" id="empty-text">No Transactions found</div>
+    <div class="empty-sub" id="empty-sub">Try adjusting your filters</div>
   </div>
 
 
