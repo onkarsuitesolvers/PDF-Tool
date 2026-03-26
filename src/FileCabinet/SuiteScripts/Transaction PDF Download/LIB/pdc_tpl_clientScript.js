@@ -903,17 +903,17 @@ async function runWithConcurrency(tasks, limit, onTaskDone) {
 
   return new Promise((resolve) => {
     function dispatch() {
-      while (active.size < limit && queue.length > 0) {
+      while (active.size < limit && queue.length > 0 && !cancelled) {
         const task = queue.shift();
         const p = task().then((result) => {
           active.delete(p);
           onTaskDone(result);
-          if (queue.length === 0 && active.size === 0) resolve();
-          else dispatch();
+          if ((queue.length === 0 || cancelled) && active.size === 0) resolve();
+          else if (!cancelled) dispatch();
         });
         active.add(p);
       }
-      if (active.size === 0 && queue.length === 0) resolve();
+      if (active.size === 0 && (queue.length === 0 || cancelled)) resolve();
     }
     dispatch();
   });
@@ -1110,6 +1110,8 @@ async function startDownload() {
 
     try {
       const buffer = await downloadOnePDF(inv);
+      if (cancelled) return { inv, ok: false, cancelled: true };
+
       const kb = (buffer.byteLength / 1024).toFixed(0);
       const ms = Date.now() - t0;
       const kbps = ms > 0 ? Math.round(buffer.byteLength / ms) : 0;
