@@ -201,6 +201,7 @@ async function doSearch() {
 
   // Collect all selected status codes once
   const allSelectedStatuses = msGetValues('status');
+  console.log('[PDC doSearch] allSelectedStatuses=' + JSON.stringify(allSelectedStatuses) + ' typesToSearch=' + JSON.stringify(typesToSearch));
 
   try {
     // Filter status codes per type so each search only gets its own relevant statuses
@@ -235,6 +236,7 @@ async function doSearch() {
         tranId:     (document.getElementById('f-tranId').value || '').trim()
       });
 
+      console.log('[PDC doSearch] type=' + typeKey + ' statusForType=' + JSON.stringify(statusForType) + ' fullParams=' + params.toString());
       fetchPromises.push(fetch(BASE_URL + '&' + params.toString()));
       fetchTypeKeys.push(typeKey);
     }
@@ -247,6 +249,7 @@ async function doSearch() {
       const resp = responses[i];
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
+      console.log('[PDC doSearch] type=' + fetchTypeKeys[i] + ' response count=' + (data.count || 0) + ' success=' + data.success);
       if (!data.success) throw new Error(data.error || 'Unknown error');
 
       const typeKey  = fetchTypeKeys[i];
@@ -268,6 +271,11 @@ async function doSearch() {
       document.getElementById('table-container').classList.add('show');
     }
   } catch (e) {
+    console.error('[PDC doSearch] Error:', e);
+    var tbody = document.getElementById('inv-tbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#c00;padding:1rem;">Search failed: ' + (e.message || 'Unknown error') + '</td></tr>';
+    document.getElementById('table-container').classList.add('show');
+    document.getElementById('empty-state').classList.remove('show');
   } finally {
     btn.disabled = false;
     document.getElementById('btn-search-label').textContent = origLabel;
