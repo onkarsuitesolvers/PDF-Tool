@@ -30,7 +30,7 @@ define(
     // Status filter (comma-separated status codes, e.g. CustCred:A,CustCred:B)
     // Client pre-filters codes per type, so we use them directly without prefix checks
     if (p.status) {
-      const codes = p.status.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean);
+      const codes = p.status.split(',').map(s => qh.normalizeStatusCode(decodeURIComponent(s.trim()))).filter(Boolean);
       if (codes.length === 1) {
         conditions.push("t.status = ?");
         params.push(codes[0]);
