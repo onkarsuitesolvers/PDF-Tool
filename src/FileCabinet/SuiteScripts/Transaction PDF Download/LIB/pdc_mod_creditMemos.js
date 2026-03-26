@@ -26,19 +26,16 @@ define(
     });
     conditions.unshift("t.recordtype = 'creditmemo'", "t.voided = 'F'");
 
-    // Status filter (comma-separated full status codes, e.g. CustCred:A,CustCred:B)
+    // Status filter (comma-separated status codes, e.g. CustCred:A,CustCred:B)
+    // Client pre-filters codes per type, so we use them directly without prefix checks
     if (p.status) {
-      const allCodes = p.status.split(',').map(s => s.trim()).filter(Boolean);
-      const cmCodes = allCodes.filter(c => c.startsWith('CustCred:'));
-      if (cmCodes.length === 1) {
+      const codes = p.status.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean);
+      if (codes.length === 1) {
         conditions.push("t.status = ?");
-        params.push(cmCodes[0]);
-      } else if (cmCodes.length > 1) {
-        conditions.push("t.status IN (" + cmCodes.map(() => '?').join(',') + ")");
-        params.push(...cmCodes);
-      } else if (allCodes.length > 0) {
-        // Status filters were selected but none apply to credit memos — return no results
-        conditions.push("1=0");
+        params.push(codes[0]);
+      } else if (codes.length > 1) {
+        conditions.push("t.status IN (" + codes.map(() => '?').join(',') + ")");
+        params.push(...codes);
       }
     }
 
