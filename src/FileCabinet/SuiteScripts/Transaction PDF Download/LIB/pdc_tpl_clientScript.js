@@ -48,12 +48,12 @@ let currentPage   = 'invoices'; // 'invoices' | 'creditmemos' | 'invoicegroups'
 ───────────────────────────────────────── */
 const PAGE_CONFIG = {
   invoices: {
-    title:       '<em>Invoices</em>',
-    sub:         'Search, preview and download Invoice PDFs by customer or date range',
-    searchLabel: 'Search Invoices',
+    title:       '<em>Transactions</em>',
+    sub:         'Search, preview and download Transactions PDFs by customer or date range',
+    searchLabel: 'Search Transactions',
     emptyIcon:   '🔎',
-    emptyText:   'No invoices found',
-    emptySub:    'Try adjusting your filters or broadening the date range',
+    emptyText:   'No Transactions found',
+    emptySub:    'Try adjusting your filters',
     tableMeta:   'transactions',
     typeLabel:   'Invoice',
     statusOptions: [
@@ -71,12 +71,12 @@ const PAGE_CONFIG = {
     prefix: 'INV'
   },
   creditmemos: {
-    title:       '<em>Credit Memos</em>',
-    sub:         'Search, preview and download credit memo PDFs by customer or date range',
-    searchLabel: 'Search Credit Memos',
-    emptyIcon:   '📋',
-    emptyText:   'No credit memos found',
-    emptySub:    'Try adjusting your filters — credit memos use different status codes',
+    title:       '<em>Transactions</em>',
+    sub:         'Search, preview and download transaction PDFs by customer or date range',
+    searchLabel: 'Search Transactions',
+    emptyIcon:   '🔎',
+    emptyText:   'No Transactions found',
+    emptySub:    'Try adjusting your filters',
     tableMeta:   'transactions',
     typeLabel:   'Credit Memo',
     statusOptions: [
@@ -93,12 +93,12 @@ const PAGE_CONFIG = {
     prefix: 'CM'
   },
   invoicegroups: {
-    title:       '<em>Invoice Groups</em>',
-    sub:         'Search, preview and download Invoice Group PDFs by customer or date range',
-    searchLabel: 'Search Invoice Groups',
-    emptyIcon:   '📦',
-    emptyText:   'No invoice groups found',
-    emptySub:    'Invoice groups must be created before they appear here',
+    title:       '<em>Transactions</em>',
+    sub:         'Search, preview and download transaction PDFs by customer or date range',
+    searchLabel: 'Search Transactions',
+    emptyIcon:   '🔎',
+    emptyText:   'No Transactions found',
+    emptySub:    'Try adjusting your filters',
     tableMeta:   'transactions',
     typeLabel:   'Invoice Group',
     statusOptions: [
