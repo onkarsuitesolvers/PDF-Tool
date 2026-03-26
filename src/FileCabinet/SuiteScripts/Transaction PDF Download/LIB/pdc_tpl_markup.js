@@ -448,10 +448,6 @@ define([], () => {
             <svg width="11" height="11" fill="none" viewBox="0 0 11 11"><rect x="1.5" y="1" width="3" height="9" rx="1" fill="currentColor"/><rect x="6.5" y="1" width="3" height="9" rx="1" fill="currentColor"/></svg>
             Pause
           </button>
-          <button type="button" class="ctrl-btn ctrl-cancel" id="btn-cancel" onclick="cancelDownload()">
-            <svg width="11" height="11" fill="none" viewBox="0 0 11 11"><path d="M2 2l7 7M9 2l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            Cancel
-          </button>
           <div class="speed-info">
             <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M1 6h2l1.5-3 2 6 1.5-4.5L9.5 7H11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span class="speed-val" id="speed-disp">—</span>
@@ -461,12 +457,9 @@ define([], () => {
 
       </div><!-- /modal-body step 2 -->
 
-      <div class="modal-footer" style="justify-content:space-between">
+      <div class="modal-footer">
         <div style="font-size:12px;color:var(--text-muted)">
           Concurrent: <strong id="concur-val" style="color:var(--teal-mid)">5</strong> · Skip errors: <strong id="skiperr-disp" style="color:var(--teal-mid)">On</strong>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button type="button" class="btn btn-outline btn-sm" onclick="cancelDownload()">Stop Download</button>
         </div>
       </div>
     </div><!-- /step 2 -->
