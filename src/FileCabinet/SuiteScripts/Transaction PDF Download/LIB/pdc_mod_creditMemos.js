@@ -32,8 +32,7 @@ define(
     if (p.status) {
       const codes = p.status.split(',').map(s => qh.normalizeStatusCode(decodeURIComponent(s.trim()))).filter(Boolean);
       if (codes.length) {
-        conditions.push("t.status IN (" + codes.map(() => '?').join(',') + ")");
-        params.push(...codes);
+        conditions.push("t.status IN (" + qh.statusInLiteral(codes) + ")");
       }
     }
 
