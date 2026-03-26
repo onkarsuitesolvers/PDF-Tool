@@ -114,11 +114,20 @@ define(['N/log'], (log) => {
     response.write(JSON.stringify(payload));
   };
 
+  /**
+   * Normalize a status code by re-inserting the colon that NetSuite strips
+   * from URL parameters.  e.g. 'CustInvcA' → 'CustInvc:A', 'CustCredB' → 'CustCred:B'.
+   * Codes that already contain the colon pass through unchanged.
+   */
+  const normalizeStatusCode = (code) =>
+    code.replace(/^(CustInvc|CustCred)([A-Z])$/, '$1:$2');
+
   return {
     parseIdList,
     pushIdFilter,
     buildCommonFilters,
     collectPagedResults,
-    writeJsonResponse
+    writeJsonResponse,
+    normalizeStatusCode
   };
 });
