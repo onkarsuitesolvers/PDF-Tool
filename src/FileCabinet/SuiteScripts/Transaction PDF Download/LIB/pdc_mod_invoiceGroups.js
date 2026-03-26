@@ -57,6 +57,8 @@ define(
       ORDER BY InvoiceGroup.trandate DESC, InvoiceGroup.id DESC
     `;
 
+    log.debug({ title: 'PDC invoiceGroups.serve finalQuery', details: 'SQL: ' + sql + ' | Params: ' + JSON.stringify(params) });
+
     const groups = [];
 
     // InvoiceGroup uses positional (non-mapped) results

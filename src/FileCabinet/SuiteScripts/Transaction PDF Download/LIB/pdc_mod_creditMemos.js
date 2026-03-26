@@ -55,6 +55,8 @@ define(
       ORDER BY t.trandate DESC, t.id DESC
     `;
 
+    log.debug({ title: 'PDC creditMemos.serve finalQuery', details: 'SQL: ' + sql + ' | Params: ' + JSON.stringify(params) });
+
     let memos = [];
     try {
       const paged = query.runSuiteQLPaged({ query: sql, params, pageSize: 1000 });
