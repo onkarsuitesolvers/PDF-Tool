@@ -36,6 +36,9 @@ define(
       } else if (invCodes.length > 1) {
         conditions.push("t.status IN (" + invCodes.map(() => '?').join(',') + ")");
         params.push(...invCodes);
+      } else if (allCodes.length > 0) {
+        // Status filters were selected but none apply to invoices — return no results
+        conditions.push("1=0");
       }
     }
 

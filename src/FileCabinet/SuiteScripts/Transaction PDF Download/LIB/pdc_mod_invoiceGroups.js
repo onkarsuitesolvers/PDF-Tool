@@ -36,6 +36,9 @@ define(
       } else if (grpCodes.length > 1) {
         conditions.push("InvoiceGroup.status IN (" + grpCodes.map(() => '?').join(',') + ")");
         params.push(...grpCodes);
+      } else if (allCodes.length > 0) {
+        // Status filters were selected but none apply to invoice groups — return no results
+        conditions.push("1=0");
       }
     }
 
