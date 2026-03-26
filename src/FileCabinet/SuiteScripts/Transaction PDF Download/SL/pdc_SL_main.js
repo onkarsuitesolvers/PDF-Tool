@@ -77,6 +77,8 @@ define(
   const onRequest = (ctx) => {
     const action = ctx.request.parameters.action || 'page';
 
+    log.debug({ title: 'PDC onRequest', details: 'action=' + action + ' | status=' + (ctx.request.parameters.status || '(none)') + ' | customer=' + (ctx.request.parameters.customer || '') + ' | subsidiary=' + (ctx.request.parameters.subsidiary || '') });
+
     try {
       // Dispatch to the appropriate module handler
       const handler = ACTION_MAP[action];

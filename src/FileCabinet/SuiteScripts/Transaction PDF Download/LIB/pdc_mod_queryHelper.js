@@ -8,7 +8,7 @@
  *  serveInvoiceList, serveCreditMemoList, and serveInvoiceGroupList.
  * ─────────────────────────────────────────────────────────────────────────────
  */
-define([], () => {
+define(['N/log'], (log) => {
 
   /**
    * Parse a comma-separated parameter into an array of positive integers.
@@ -82,6 +82,8 @@ define([], () => {
       const subIds = parseIdList(p.subsidiary);
       if (subIds.length) pushIdFilter(conditions, params, subsidiaryCol, subIds);
     }
+
+    log.debug({ title: 'PDC queryHelper.buildCommonFilters', details: 'dateFrom=' + (p.dateFrom || '') + ' dateTo=' + (p.dateTo || '') + ' customer=' + (p.customer || '') + ' subsidiary=' + (p.subsidiary || '') + ' tranId=' + (p.tranId || '') + ' | built ' + conditions.length + ' conditions' });
 
     return { conditions, params };
   };

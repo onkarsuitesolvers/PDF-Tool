@@ -9,8 +9,8 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 define(
-  ['N/query', './pdc_mod_queryHelper'],
-  (query, qh) => {
+  ['N/query', 'N/log', './pdc_mod_queryHelper'],
+  (query, log, qh) => {
 
   /**
    * Serve the filtered invoice group list as JSON.
@@ -18,6 +18,7 @@ define(
    */
   const serve = ({ request, response }) => {
     const p = request.parameters;
+    log.debug({ title: 'PDC invoiceGroups.serve', details: 'p.status=' + (p.status || '(empty)') + ' | p.customer=' + (p.customer || '') + ' | p.dateFrom=' + (p.dateFrom || '') + ' | p.dateTo=' + (p.dateTo || '') });
 
     // Build filters — no subsidiary support for InvoiceGroup
     const { conditions, params } = qh.buildCommonFilters(p, {
@@ -41,6 +42,8 @@ define(
 
     if (conditions.length === 0) conditions.push('1=1');
 
+    log.debug({ title: 'PDC invoiceGroups.serve SQL', details: 'conditions=' + JSON.stringify(conditions) + ' | params=' + JSON.stringify(params) });
+
     // Positional columns: 0=id, 1=invoicegroupnumber, 2=customername,
     //                      3=trandate, 4=duedate, 5=amountdue, 6=statuscode
     const sql = `
@@ -60,32 +63,38 @@ define(
     const groups = [];
 
     // InvoiceGroup uses positional (non-mapped) results
-    const paged = query.runSuiteQLPaged({ query: sql, params, pageSize: 50 });
-    paged.iterator().each((page) => {
-      page.value.data.iterator().each((row) => {
-        const v          = row.value.values;   // positional array
-        const statusCode = (v[6] || '').toString().toUpperCase();
-        const statusLabel = statusCode === 'PAIDFULL' ? 'Paid in Full'
-                          : statusCode === 'PAIDPART' ? 'Partially Paid'
-                          : statusCode === 'OPEN'     ? 'Open'
-                          : statusCode === 'BILLED'   ? 'Billed'
-                          : statusCode;
+    try {
+      const paged = query.runSuiteQLPaged({ query: sql, params, pageSize: 50 });
+      paged.iterator().each((page) => {
+        page.value.data.iterator().each((row) => {
+          const v          = row.value.values;   // positional array
+          const statusCode = (v[6] || '').toString().toUpperCase();
+          const statusLabel = statusCode === 'PAIDFULL' ? 'Paid in Full'
+                            : statusCode === 'PAIDPART' ? 'Partially Paid'
+                            : statusCode === 'OPEN'     ? 'Open'
+                            : statusCode === 'BILLED'   ? 'Billed'
+                            : statusCode;
 
-        groups.push({
-          id:         v[0],
-          tranId:     v[1] || `GRP-${v[0]}`,
-          customer:   v[2] || 'Unknown',
-          date:       v[3] || '',
-          dueDate:    v[4] || '',
-          amount:     v[5],
-          currency:   '',
-          status:     statusLabel,
-          statusCode: statusCode
+          groups.push({
+            id:         v[0],
+            tranId:     v[1] || `GRP-${v[0]}`,
+            customer:   v[2] || 'Unknown',
+            date:       v[3] || '',
+            dueDate:    v[4] || '',
+            amount:     v[5],
+            currency:   '',
+            status:     statusLabel,
+            statusCode: statusCode
+          });
+          return true;
         });
         return true;
       });
-      return true;
-    });
+      log.debug({ title: 'PDC invoiceGroups.serve result', details: 'count=' + groups.length });
+    } catch (e) {
+      log.error({ title: 'PDC invoiceGroups.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });
+      throw e;
+    }
 
     qh.writeJsonResponse(response, {
       success:  true,

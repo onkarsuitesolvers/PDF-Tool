@@ -8,8 +8,8 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 define(
-  ['N/query', './pdc_mod_queryHelper'],
-  (query, qh) => {
+  ['N/query', 'N/log', './pdc_mod_queryHelper'],
+  (query, log, qh) => {
 
   /**
    * Serve the filtered invoice list as JSON.
@@ -17,6 +17,7 @@ define(
    */
   const serve = ({ request, response }) => {
     const p = request.parameters;
+    log.debug({ title: 'PDC invoices.serve', details: 'p.status=' + (p.status || '(empty)') + ' | p.customer=' + (p.customer || '') + ' | p.dateFrom=' + (p.dateFrom || '') + ' | p.dateTo=' + (p.dateTo || '') });
 
     // Base conditions
     const { conditions, params } = qh.buildCommonFilters(p, {
@@ -39,6 +40,8 @@ define(
       }
     }
 
+    log.debug({ title: 'PDC invoices.serve SQL', details: 'conditions=' + JSON.stringify(conditions) + ' | params=' + JSON.stringify(params) });
+
     const sql = `
       SELECT
         t.id,
@@ -55,18 +58,25 @@ define(
       ORDER BY t.trandate DESC, t.id DESC
     `;
 
-    const paged    = query.runSuiteQLPaged({ query: sql, params, pageSize: 1000 });
-    const invoices = qh.collectPagedResults(paged, (row) => ({
-      id:         row.id,
-      tranId:     row.tranid || `INV-${row.id}`,
-      customer:   row.customername || 'Unknown',
-      date:       row.trandate,
-      dueDate:    row.duedate || '',
-      amount:     row.amount,
-      currency:   row.currency,
-      status:     row.statuslabel || '',
-      statusCode: row.statuscode  || ''
-    }));
+    let invoices = [];
+    try {
+      const paged    = query.runSuiteQLPaged({ query: sql, params, pageSize: 1000 });
+      invoices = qh.collectPagedResults(paged, (row) => ({
+        id:         row.id,
+        tranId:     row.tranid || `INV-${row.id}`,
+        customer:   row.customername || 'Unknown',
+        date:       row.trandate,
+        dueDate:    row.duedate || '',
+        amount:     row.amount,
+        currency:   row.currency,
+        status:     row.statuslabel || '',
+        statusCode: row.statuscode  || ''
+      }));
+      log.debug({ title: 'PDC invoices.serve result', details: 'count=' + invoices.length });
+    } catch (e) {
+      log.error({ title: 'PDC invoices.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });
+      throw e;
+    }
 
     qh.writeJsonResponse(response, {
       success: true,
