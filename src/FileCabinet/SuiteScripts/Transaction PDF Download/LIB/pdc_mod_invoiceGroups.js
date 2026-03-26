@@ -62,8 +62,7 @@ define(
 
     // InvoiceGroup uses positional (non-mapped) results
     try {
-      const resultSet = query.runSuiteQL({ query: sql, params });
-      resultSet.iterator().each((row) => {
+      qh.runSuiteQLAllRaw(query, sql, params, (row) => {
         const v          = row.value.values;   // positional array
         const statusCode = (v[6] || '').toString().toUpperCase();
         const statusLabel = statusCode === 'PAIDFULL' ? 'Paid in Full'
@@ -83,7 +82,6 @@ define(
           status:     statusLabel,
           statusCode: statusCode
         });
-        return true;
       });
       log.debug({ title: 'PDC invoiceGroups.serve result', details: 'count=' + groups.length });
     } catch (e) {

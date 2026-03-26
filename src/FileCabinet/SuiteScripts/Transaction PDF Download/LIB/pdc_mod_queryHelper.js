@@ -107,6 +107,69 @@ define(['N/log'], (log) => {
   };
 
   /**
+   * Run a SuiteQL query using runSuiteQL with manual OFFSET/FETCH pagination
+   * to work around runSuiteQLPaged returning 0 rows.
+   *
+   * Fetches up to PAGE_SIZE rows at a time using SQL-level pagination,
+   * repeating until a page returns fewer rows than requested.
+   *
+   * @param {Object}   queryModule  The N/query module reference
+   * @param {string}   sql          Base SQL (WITHOUT OFFSET/FETCH — they are appended)
+   * @param {any[]}    params       Bind parameters
+   * @param {Function} mapFn        (row: Object) => mapped object  (receives asMappedResults rows)
+   * @param {number}   [pageSize=5000]  Rows per page (max 5000 for runSuiteQL)
+   * @returns {Object[]}
+   */
+  const runSuiteQLAll = (queryModule, sql, params, mapFn, pageSize) => {
+    const PAGE = pageSize || 5000;
+    const results = [];
+    let offset = 0;
+
+    while (true) {
+      const pagedSql = sql + ` OFFSET ${offset} ROWS FETCH NEXT ${PAGE} ROWS ONLY`;
+      const resultSet = queryModule.runSuiteQL({ query: pagedSql, params: params });
+      const rows = resultSet.asMappedResults();
+
+      rows.forEach((row) => results.push(mapFn(row)));
+
+      if (rows.length < PAGE) break;
+      offset += PAGE;
+    }
+
+    return results;
+  };
+
+  /**
+   * Run a SuiteQL query with manual OFFSET/FETCH pagination, using
+   * positional (non-mapped) row iteration for queries that need raw values.
+   *
+   * @param {Object}   queryModule  The N/query module reference
+   * @param {string}   sql          Base SQL (WITHOUT OFFSET/FETCH)
+   * @param {any[]}    params       Bind parameters
+   * @param {Function} rowFn        (row) => void — receives each row from iterator
+   * @param {number}   [pageSize=5000]
+   */
+  const runSuiteQLAllRaw = (queryModule, sql, params, rowFn, pageSize) => {
+    const PAGE = pageSize || 5000;
+    let offset = 0;
+
+    while (true) {
+      const pagedSql = sql + ` OFFSET ${offset} ROWS FETCH NEXT ${PAGE} ROWS ONLY`;
+      const resultSet = queryModule.runSuiteQL({ query: pagedSql, params: params });
+
+      let count = 0;
+      resultSet.iterator().each((row) => {
+        rowFn(row);
+        count++;
+        return true;
+      });
+
+      if (count < PAGE) break;
+      offset += PAGE;
+    }
+  };
+
+  /**
    * Write a JSON success / list response.
    */
   const writeJsonResponse = (response, payload) => {
@@ -159,6 +222,8 @@ define(['N/log'], (log) => {
     pushIdFilter,
     buildCommonFilters,
     collectPagedResults,
+    runSuiteQLAll,
+    runSuiteQLAllRaw,
     writeJsonResponse,
     normalizeStatusCode,
     statusInLiteral

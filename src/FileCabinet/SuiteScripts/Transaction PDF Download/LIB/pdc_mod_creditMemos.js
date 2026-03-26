@@ -58,9 +58,7 @@ define(
 
     let memos = [];
     try {
-      const resultSet = query.runSuiteQL({ query: sql, params });
-      const rows = resultSet.asMappedResults();
-      memos = rows.map((row) => ({
+      memos = qh.runSuiteQLAll(query, sql, params, (row) => ({
         id:         row.id,
         tranId:     row.tranid || `CM-${row.id}`,
         customer:   row.customername || 'Unknown',

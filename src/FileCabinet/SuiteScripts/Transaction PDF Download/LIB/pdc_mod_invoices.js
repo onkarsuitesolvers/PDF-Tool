@@ -58,9 +58,7 @@ define(
 
     let invoices = [];
     try {
-      const resultSet = query.runSuiteQL({ query: sql, params });
-      const rows = resultSet.asMappedResults();
-      invoices = rows.map((row) => ({
+      invoices = qh.runSuiteQLAll(query, sql, params, (row) => ({
         id:         row.id,
         tranId:     row.tranid || `INV-${row.id}`,
         customer:   row.customername || 'Unknown',
