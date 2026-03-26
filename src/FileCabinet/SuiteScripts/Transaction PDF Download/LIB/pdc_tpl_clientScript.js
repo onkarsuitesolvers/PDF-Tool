@@ -199,12 +199,31 @@ async function doSearch() {
   const selTypes = msGetValues('trantype');
   const typesToSearch = selTypes.length > 0 ? selTypes : Object.keys(PAGE_CONFIG);
 
+  // Collect all selected status codes once
+  const allSelectedStatuses = msGetValues('status');
+
   try {
-    let allInvoices = [];
+    // Filter status codes per type so each search only gets its own relevant statuses
+    function getStatusForType(typeKey) {
+      if (allSelectedStatuses.length === 0) return '';
+      const typeStatusIds = (PAGE_CONFIG[typeKey].statusOptions || []).map(o => String(o.id));
+      const relevant = allSelectedStatuses.filter(s => typeStatusIds.includes(s));
+      // If statuses were selected but none match this type, skip this type entirely
+      if (relevant.length === 0) return null;
+      return relevant.join(',');
+    }
+
+    // Build fetch promises in parallel for all applicable types
+    const fetchPromises = [];
+    const fetchTypeKeys = [];
 
     for (const typeKey of typesToSearch) {
       const typeCfg = PAGE_CONFIG[typeKey];
       if (!typeCfg) continue;
+
+      const statusForType = getStatusForType(typeKey);
+      // null means statuses were selected but none apply to this type — skip it
+      if (statusForType === null) continue;
 
       const params = new URLSearchParams({
         action:     typeCfg.action,
@@ -212,15 +231,26 @@ async function doSearch() {
         dateTo:     document.getElementById('f-dateTo').value,
         customer:   msGetValues('customer').join(','),
         subsidiary: msGetValues('subsidiary').join(','),
-        status:     msGetValues('status').join(','),
+        status:     statusForType,
         tranId:     (document.getElementById('f-tranId').value || '').trim()
       });
 
-      const resp = await fetch(BASE_URL + '&' + params.toString());
+      fetchPromises.push(fetch(BASE_URL + '&' + params.toString()));
+      fetchTypeKeys.push(typeKey);
+    }
+
+    // Await all fetches in parallel
+    const responses = await Promise.all(fetchPromises);
+    let allInvoices = [];
+
+    for (let i = 0; i < responses.length; i++) {
+      const resp = responses[i];
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       if (!data.success) throw new Error(data.error || 'Unknown error');
 
+      const typeKey  = fetchTypeKeys[i];
+      const typeCfg  = PAGE_CONFIG[typeKey];
       const typeLabel = typeCfg.typeLabel || typeKey;
       const items = (data.invoices || []).map(inv => ({ ...inv, _typeLabel: typeLabel, _typeKey: typeKey }));
       allInvoices = allInvoices.concat(items);
@@ -556,7 +586,21 @@ async function downloadSingle(id, tranId) {
 function renderTable(list) {
   const cfg   = PAGE_CONFIG[currentPage];
   const tbody = document.getElementById('inv-tbody');
+  const thead = document.getElementById('inv-thead');
   tbody.innerHTML = '';
+
+  // Detect if results contain multiple types
+  const typeKeys = new Set(list.map(item => item._typeKey).filter(Boolean));
+  const isMultiType = typeKeys.size > 1;
+
+  // Use a unified header when mixing transaction types
+  if (isMultiType) {
+    thead.innerHTML = \`<tr>
+      <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
+      <th>Type</th><th>Tran ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
+      <th>Amount</th><th>Status</th><th>DL Status</th>
+    </tr>\`;
+  }
 
   // Re-attach cb-all after thead was rewritten by switchPage
   const cbAll = document.getElementById('cb-all');

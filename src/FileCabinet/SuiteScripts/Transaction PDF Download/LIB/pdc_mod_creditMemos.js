@@ -36,6 +36,9 @@ define(
       } else if (cmCodes.length > 1) {
         conditions.push("t.status IN (" + cmCodes.map(() => '?').join(',') + ")");
         params.push(...cmCodes);
+      } else if (allCodes.length > 0) {
+        // Status filters were selected but none apply to credit memos — return no results
+        conditions.push("1=0");
       }
     }
 
