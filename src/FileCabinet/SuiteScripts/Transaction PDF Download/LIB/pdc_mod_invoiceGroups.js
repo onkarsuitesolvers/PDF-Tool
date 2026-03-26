@@ -62,31 +62,26 @@ define(
 
     // InvoiceGroup uses positional (non-mapped) results
     try {
-      const paged = query.runSuiteQLPaged({ query: sql, params, pageSize: 50 });
-      paged.iterator().each((page) => {
-        page.value.data.iterator().each((row) => {
-          const v          = row.value.values;   // positional array
-          const statusCode = (v[6] || '').toString().toUpperCase();
-          const statusLabel = statusCode === 'PAIDFULL' ? 'Paid in Full'
-                            : statusCode === 'PAIDPART' ? 'Partially Paid'
-                            : statusCode === 'OPEN'     ? 'Open'
-                            : statusCode === 'BILLED'   ? 'Billed'
-                            : statusCode;
+      qh.runSuiteQLAllRaw(query, sql, params, (row) => {
+        const v          = row.value.values;   // positional array
+        const statusCode = (v[6] || '').toString().toUpperCase();
+        const statusLabel = statusCode === 'PAIDFULL' ? 'Paid in Full'
+                          : statusCode === 'PAIDPART' ? 'Partially Paid'
+                          : statusCode === 'OPEN'     ? 'Open'
+                          : statusCode === 'BILLED'   ? 'Billed'
+                          : statusCode;
 
-          groups.push({
-            id:         v[0],
-            tranId:     v[1] || `GRP-${v[0]}`,
-            customer:   v[2] || 'Unknown',
-            date:       v[3] || '',
-            dueDate:    v[4] || '',
-            amount:     v[5],
-            currency:   '',
-            status:     statusLabel,
-            statusCode: statusCode
-          });
-          return true;
+        groups.push({
+          id:         v[0],
+          tranId:     v[1] || `GRP-${v[0]}`,
+          customer:   v[2] || 'Unknown',
+          date:       v[3] || '',
+          dueDate:    v[4] || '',
+          amount:     v[5],
+          currency:   '',
+          status:     statusLabel,
+          statusCode: statusCode
         });
-        return true;
       });
       log.debug({ title: 'PDC invoiceGroups.serve result', details: 'count=' + groups.length });
     } catch (e) {
