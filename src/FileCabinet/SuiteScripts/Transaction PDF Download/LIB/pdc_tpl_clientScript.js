@@ -193,6 +193,7 @@ function updateStatusOptions() {
 const SEARCH_PAGE_SIZE = 1000;
 const SEARCH_FETCH_TIMEOUT = 120000;  // 2 minutes per page fetch
 const SEARCH_MAX_RETRIES   = 2;       // retry failed page fetches up to 2 times
+const SEARCH_MAX_PAGES     = 200;     // safety cap: max pages per type (200 × 1000 = 200k rows)
 
 function showSearchProgress() {
   hideSearchProgress();
@@ -297,9 +298,11 @@ async function doSearch() {
       const typeLabel = typeCfg.typeLabel || typeKey;
       let offset = 0;
       let typeTotal = 0;
+      let pageCount = 0;
 
       // Fetch page by page for this type
-      while (true) {
+      while (pageCount < SEARCH_MAX_PAGES) {
+        pageCount++;
         const params = new URLSearchParams({
           ...baseParams,
           pageSize: SEARCH_PAGE_SIZE,
@@ -346,8 +349,9 @@ async function doSearch() {
         console.log('[PDC doSearch] type=' + typeKey + ' page returned ' + items.length + ' total=' + typeTotal + ' grandFetched=' + grandFetched + '/' + grandTotal);
         updateSearchProgress(grandFetched, grandTotal, typeLabel);
 
-        // Stop if no more pages
+        // Stop if server says no more, page was empty, or we've reached the known total
         if (!data.hasMore || items.length === 0) break;
+        if (typeTotal > 0 && (offset + items.length) >= typeTotal) break;
         offset += SEARCH_PAGE_SIZE;
       }
     }
