@@ -191,6 +191,8 @@ function updateStatusOptions() {
 ───────────────────────────────────────── */
 /* ── Search progress overlay helpers ── */
 const SEARCH_PAGE_SIZE = 1000;
+const SEARCH_FETCH_TIMEOUT = 120000;  // 2 minutes per page fetch
+const SEARCH_MAX_RETRIES   = 2;       // retry failed page fetches up to 2 times
 
 function showSearchProgress() {
   hideSearchProgress();
@@ -305,10 +307,28 @@ async function doSearch() {
         });
         console.log('[PDC doSearch] type=' + typeKey + ' offset=' + offset);
 
-        const resp = await fetch(BASE_URL + '&' + params.toString());
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const data = await resp.json();
-        if (!data.success) throw new Error(data.error || 'Unknown error');
+        let data;
+        let lastErr;
+        for (let attempt = 0; attempt <= SEARCH_MAX_RETRIES; attempt++) {
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), SEARCH_FETCH_TIMEOUT);
+            const resp = await fetch(BASE_URL + '&' + params.toString(), { signal: controller.signal });
+            clearTimeout(timer);
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            data = await resp.json();
+            if (!data.success) throw new Error(data.error || 'Unknown error');
+            lastErr = null;
+            break;
+          } catch (e) {
+            lastErr = e;
+            console.warn('[PDC doSearch] attempt ' + (attempt + 1) + ' failed for offset=' + offset + ': ' + e.message);
+            if (attempt < SEARCH_MAX_RETRIES) {
+              await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+            }
+          }
+        }
+        if (lastErr) throw new Error('Failed to fetch page at offset ' + offset + ' after ' + (SEARCH_MAX_RETRIES + 1) + ' attempts: ' + lastErr.message);
 
         // On first page, learn total count for this type
         if (offset === 0) {
