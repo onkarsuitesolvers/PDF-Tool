@@ -191,6 +191,8 @@ function updateStatusOptions() {
 ───────────────────────────────────────── */
 /* ── Search progress overlay helpers ── */
 const SEARCH_PAGE_SIZE = 1000;
+const SEARCH_FETCH_TIMEOUT = 120000;  // 2 minutes per page fetch
+const SEARCH_MAX_RETRIES   = 2;       // retry failed page fetches up to 2 times
 
 function showSearchProgress() {
   hideSearchProgress();
@@ -305,10 +307,28 @@ async function doSearch() {
         });
         console.log('[PDC doSearch] type=' + typeKey + ' offset=' + offset);
 
-        const resp = await fetch(BASE_URL + '&' + params.toString());
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const data = await resp.json();
-        if (!data.success) throw new Error(data.error || 'Unknown error');
+        let data;
+        let lastErr;
+        for (let attempt = 0; attempt <= SEARCH_MAX_RETRIES; attempt++) {
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), SEARCH_FETCH_TIMEOUT);
+            const resp = await fetch(BASE_URL + '&' + params.toString(), { signal: controller.signal });
+            clearTimeout(timer);
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            data = await resp.json();
+            if (!data.success) throw new Error(data.error || 'Unknown error');
+            lastErr = null;
+            break;
+          } catch (e) {
+            lastErr = e;
+            console.warn('[PDC doSearch] attempt ' + (attempt + 1) + ' failed for offset=' + offset + ': ' + e.message);
+            if (attempt < SEARCH_MAX_RETRIES) {
+              await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+            }
+          }
+        }
+        if (lastErr) throw new Error('Failed to fetch page at offset ' + offset + ' after ' + (SEARCH_MAX_RETRIES + 1) + ' attempts: ' + lastErr.message);
 
         // On first page, learn total count for this type
         if (offset === 0) {
@@ -320,6 +340,9 @@ async function doSearch() {
         allInvoices = allInvoices.concat(items);
         grandFetched += items.length;
 
+        // If actual fetched exceeds initial COUNT estimate, correct grandTotal
+        if (grandFetched > grandTotal) grandTotal = grandFetched;
+
         console.log('[PDC doSearch] type=' + typeKey + ' page returned ' + items.length + ' total=' + typeTotal + ' grandFetched=' + grandFetched + '/' + grandTotal);
         updateSearchProgress(grandFetched, grandTotal, typeLabel);
 
@@ -329,9 +352,16 @@ async function doSearch() {
       }
     }
 
-    // Update title to rendering phase
+    // Update overlay to rendering phase and let the browser paint before heavy DOM work
     var title = document.getElementById('search-progress-title');
-    if (title) title.textContent = 'Rendering ' + allInvoices.length + ' results...';
+    if (title) title.textContent = 'Please wait, rendering ' + allInvoices.length + ' records to screen...';
+    var bar = document.getElementById('search-progress-bar');
+    if (bar) bar.style.width = '100%';
+    var status = document.getElementById('search-progress-status');
+    if (status) status.textContent = 'Extracted ' + allInvoices.length + ' records — rendering table...';
+
+    // Yield to browser so the rendering message is visible before the heavy renderTable call
+    await new Promise(function (resolve) { requestAnimationFrame(function () { setTimeout(resolve, 50); }); });
 
     invoices = allInvoices;
     renderTable(invoices);

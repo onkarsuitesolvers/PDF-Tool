@@ -85,11 +85,16 @@ define(
     // InvoiceGroup uses positional (non-mapped) results
     try {
       if (reqPageSize > 0) {
-        const total = qh.runSuiteQLCount(query, sql, params);
         const groups = qh.runSuiteQLPageRaw(query, sql, params, mapRawRow, reqOffset, reqPageSize);
-        const hasMore = (reqOffset + groups.length) < total;
-        log.debug({ title: 'PDC invoiceGroups.serve paged', details: 'offset=' + reqOffset + ' page=' + groups.length + ' total=' + total });
-        qh.writeJsonResponse(response, { success: true, count: groups.length, total, hasMore, invoices: groups });
+        let total;
+        if (reqOffset === 0) {
+          total = qh.runSuiteQLCount(query, sql, params);
+        }
+        const hasMore = groups.length >= reqPageSize;
+        log.debug({ title: 'PDC invoiceGroups.serve paged', details: 'offset=' + reqOffset + ' page=' + groups.length + (total != null ? ' total=' + total : '') });
+        const result = { success: true, count: groups.length, total, hasMore, invoices: groups };
+        if (total != null) result.total = total;
+        qh.writeJsonResponse(response, result);
       } else {
         const groups = [];
         const rawResult = qh.runSuiteQLAllRaw(query, sql, params, (row) => {

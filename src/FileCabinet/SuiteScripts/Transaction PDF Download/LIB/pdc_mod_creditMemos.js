@@ -73,11 +73,16 @@ define(
 
     try {
       if (reqPageSize > 0) {
-        const total = qh.runSuiteQLCount(query, sql, params);
         const memos = qh.runSuiteQLPage(query, sql, params, mapRow, reqOffset, reqPageSize);
-        const hasMore = (reqOffset + memos.length) < total;
-        log.debug({ title: 'PDC creditMemos.serve paged', details: 'offset=' + reqOffset + ' page=' + memos.length + ' total=' + total });
-        qh.writeJsonResponse(response, { success: true, count: memos.length, total, hasMore, invoices: memos });
+        let total;
+        if (reqOffset === 0) {
+          total = qh.runSuiteQLCount(query, sql, params);
+        }
+        const hasMore = memos.length >= reqPageSize;
+        log.debug({ title: 'PDC creditMemos.serve paged', details: 'offset=' + reqOffset + ' page=' + memos.length + (total != null ? ' total=' + total : '') });
+        const result = { success: true, count: memos.length, hasMore, invoices: memos };
+        if (total != null) result.total = total;
+        qh.writeJsonResponse(response, result);
       } else {
         const result = qh.runSuiteQLAll(query, sql, params, mapRow);
         log.debug({ title: 'PDC creditMemos.serve result', details: 'count=' + result.results.length });

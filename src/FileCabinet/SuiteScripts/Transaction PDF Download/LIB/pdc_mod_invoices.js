@@ -73,12 +73,17 @@ define(
 
     try {
       if (reqPageSize > 0) {
-        // Paged mode: return one page + total count
-        const total = qh.runSuiteQLCount(query, sql, params);
+        // Paged mode: return one page; only compute total on first page (offset 0)
         const invoices = qh.runSuiteQLPage(query, sql, params, mapRow, reqOffset, reqPageSize);
-        const hasMore = (reqOffset + invoices.length) < total;
-        log.debug({ title: 'PDC invoices.serve paged', details: 'offset=' + reqOffset + ' page=' + invoices.length + ' total=' + total });
-        qh.writeJsonResponse(response, { success: true, count: invoices.length, total, hasMore, invoices });
+        let total;
+        if (reqOffset === 0) {
+          total = qh.runSuiteQLCount(query, sql, params);
+        }
+        const hasMore = invoices.length >= reqPageSize;
+        log.debug({ title: 'PDC invoices.serve paged', details: 'offset=' + reqOffset + ' page=' + invoices.length + (total != null ? ' total=' + total : '') });
+        const result = { success: true, count: invoices.length, hasMore, invoices };
+        if (total != null) result.total = total;
+        qh.writeJsonResponse(response, result);
       } else {
         // Full mode: return all results
         const result = qh.runSuiteQLAll(query, sql, params, mapRow);
