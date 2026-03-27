@@ -245,13 +245,15 @@ async function doSearch() {
     // Await all fetches in parallel
     const responses = await Promise.all(fetchPromises);
     let allInvoices = [];
+    let anyTruncated = false;
 
     for (let i = 0; i < responses.length; i++) {
       const resp = responses[i];
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
-      console.log('[PDC doSearch] type=' + fetchTypeKeys[i] + ' response count=' + (data.count || 0) + ' success=' + data.success);
+      console.log('[PDC doSearch] type=' + fetchTypeKeys[i] + ' response count=' + (data.count || 0) + ' success=' + data.success + ' truncated=' + !!data.truncated);
       if (!data.success) throw new Error(data.error || 'Unknown error');
+      if (data.truncated) anyTruncated = true;
 
       const typeKey  = fetchTypeKeys[i];
       const typeCfg  = PAGE_CONFIG[typeKey];
@@ -263,6 +265,18 @@ async function doSearch() {
     invoices = allInvoices;
     renderTable(invoices);
     setStats(invoices.length, 0, 0);
+
+    // Show truncation warning if any result set was capped
+    var truncWarn = document.getElementById('truncation-warning');
+    if (truncWarn) truncWarn.remove();
+    if (anyTruncated) {
+      var warn = document.createElement('div');
+      warn.id = 'truncation-warning';
+      warn.style.cssText = 'background:#fef3cd;color:#856404;border:1px solid #ffc107;border-radius:6px;padding:0.6rem 1rem;margin-bottom:0.75rem;font-size:0.85rem;';
+      warn.textContent = 'Results were limited to prevent timeout. Please narrow your search with filters or a shorter date range for complete results.';
+      var tc = document.getElementById('table-container');
+      if (tc) tc.parentNode.insertBefore(warn, tc);
+    }
 
     if (invoices.length === 0) {
       document.getElementById('table-container').classList.remove('show');

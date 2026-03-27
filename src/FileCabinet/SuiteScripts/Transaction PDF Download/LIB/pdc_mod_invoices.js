@@ -57,8 +57,9 @@ define(
     log.debug({ title: 'PDC invoices.serve finalQuery', details: 'SQL: ' + sql + ' | Params: ' + JSON.stringify(params) });
 
     let invoices = [];
+    let truncated = false;
     try {
-      invoices = qh.runSuiteQLAll(query, sql, params, (row) => ({
+      const result = qh.runSuiteQLAll(query, sql, params, (row) => ({
         id:         row.id,
         tranId:     row.tranid || `INV-${row.id}`,
         customer:   row.customername || 'Unknown',
@@ -69,7 +70,9 @@ define(
         status:     row.statuslabel || '',
         statusCode: row.statuscode  || ''
       }));
-      log.debug({ title: 'PDC invoices.serve result', details: 'count=' + invoices.length });
+      invoices  = result.results;
+      truncated = result.truncated;
+      log.debug({ title: 'PDC invoices.serve result', details: 'count=' + invoices.length + ' truncated=' + truncated });
     } catch (e) {
       log.error({ title: 'PDC invoices.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });
       throw e;
@@ -78,6 +81,7 @@ define(
     qh.writeJsonResponse(response, {
       success: true,
       count:   invoices.length,
+      truncated,
       invoices
     });
   };

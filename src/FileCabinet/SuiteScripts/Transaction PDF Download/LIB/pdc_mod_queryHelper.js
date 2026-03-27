@@ -8,7 +8,12 @@
  *  serveInvoiceList, serveCreditMemoList, and serveInvoiceGroupList.
  * ─────────────────────────────────────────────────────────────────────────────
  */
-define(['N/log'], (log) => {
+define(['N/log', 'N/runtime'], (log, runtime) => {
+
+  const MAX_RESULTS   = 4000;   // hard cap — prevents governance exhaustion
+  const PAGED_SIZE    = 1000;   // pageSize for runSuiteQLPaged
+  const FALLBACK_PAGE = 1000;   // rows per runSuiteQL call (fallback)
+  const GOV_THRESHOLD = 500;    // stop pagination when remaining units drop below this
 
   /**
    * Parse a comma-separated parameter into an array of positive integers.
@@ -107,25 +112,61 @@ define(['N/log'], (log) => {
   };
 
   /**
-   * Run a SuiteQL query using runSuiteQL with manual OFFSET/FETCH pagination
-   * to work around runSuiteQLPaged returning 0 rows.
+   * Run a SuiteQL query and collect all mapped results.
    *
-   * Fetches up to PAGE_SIZE rows at a time using SQL-level pagination,
-   * repeating until a page returns fewer rows than requested.
+   * Strategy: try runSuiteQLPaged first (10 governance units total for all
+   * pages). If it returns 0 rows — a known NetSuite bug with certain query
+   * patterns — fall back to manual OFFSET/FETCH pagination with runSuiteQL.
    *
    * @param {Object}   queryModule  The N/query module reference
-   * @param {string}   sql          Base SQL (WITHOUT OFFSET/FETCH — they are appended)
+   * @param {string}   sql          Base SQL (WITHOUT OFFSET/FETCH — they are appended by fallback)
    * @param {any[]}    params       Bind parameters
    * @param {Function} mapFn        (row: Object) => mapped object  (receives asMappedResults rows)
-   * @param {number}   [pageSize=5000]  Rows per page (max 5000 for runSuiteQL)
-   * @returns {Object[]}
+   * @param {number}   [pageSize]   Rows per page
+   * @returns {{ results: Object[], truncated: boolean }}
    */
   const runSuiteQLAll = (queryModule, sql, params, mapFn, pageSize) => {
-    const PAGE = pageSize || 5000;
+    // ── Primary: runSuiteQLPaged (governance-efficient) ──
+    try {
+      const results = [];
+      let truncated = false;
+      const pagedResult = queryModule.runSuiteQLPaged({ query: sql, params: params, pageSize: pageSize || PAGED_SIZE });
+
+      pagedResult.iterator().each((page) => {
+        page.value.data.asMappedResults().forEach((row) => {
+          results.push(mapFn(row));
+        });
+        if (results.length >= MAX_RESULTS) {
+          truncated = true;
+          return false;   // stop iterating pages
+        }
+        return true;
+      });
+
+      if (results.length > 0) {
+        if (results.length >= MAX_RESULTS) truncated = true;
+        log.debug({ title: 'PDC runSuiteQLAll', details: 'Paged query returned ' + results.length + ' rows (truncated=' + truncated + ')' });
+        return { results, truncated };
+      }
+      log.debug({ title: 'PDC runSuiteQLAll', details: 'runSuiteQLPaged returned 0 rows — falling back to manual pagination' });
+    } catch (e) {
+      log.debug({ title: 'PDC runSuiteQLAll', details: 'runSuiteQLPaged failed (' + e.message + ') — falling back to manual pagination' });
+    }
+
+    // ── Fallback: manual OFFSET/FETCH with runSuiteQL ──
+    const PAGE = pageSize || FALLBACK_PAGE;
     const results = [];
     let offset = 0;
+    let truncated = false;
 
     while (true) {
+      const remaining = runtime.getCurrentScript().getRemainingUsage();
+      if (remaining < GOV_THRESHOLD) {
+        log.audit({ title: 'PDC runSuiteQLAll', details: 'Stopping — governance remaining: ' + remaining + ', rows so far: ' + results.length });
+        truncated = true;
+        break;
+      }
+
       const pagedSql = sql + ` OFFSET ${offset} ROWS FETCH NEXT ${PAGE} ROWS ONLY`;
       const resultSet = queryModule.runSuiteQL({ query: pagedSql, params: params });
       const rows = resultSet.asMappedResults();
@@ -134,26 +175,74 @@ define(['N/log'], (log) => {
 
       if (rows.length < PAGE) break;
       offset += PAGE;
+
+      if (results.length >= MAX_RESULTS) {
+        log.audit({ title: 'PDC runSuiteQLAll', details: 'Max results cap reached: ' + results.length });
+        truncated = true;
+        break;
+      }
     }
 
-    return results;
+    return { results, truncated };
   };
 
   /**
-   * Run a SuiteQL query with manual OFFSET/FETCH pagination, using
-   * positional (non-mapped) row iteration for queries that need raw values.
+   * Run a SuiteQL query with positional (non-mapped) row iteration.
+   *
+   * Same paged-first strategy as runSuiteQLAll: tries runSuiteQLPaged,
+   * falls back to manual OFFSET/FETCH if paged returns 0 rows.
    *
    * @param {Object}   queryModule  The N/query module reference
    * @param {string}   sql          Base SQL (WITHOUT OFFSET/FETCH)
    * @param {any[]}    params       Bind parameters
    * @param {Function} rowFn        (row) => void — receives each row from iterator
-   * @param {number}   [pageSize=5000]
+   * @param {number}   [pageSize]
+   * @returns {{ truncated: boolean }}
    */
   const runSuiteQLAllRaw = (queryModule, sql, params, rowFn, pageSize) => {
-    const PAGE = pageSize || 5000;
+    // ── Primary: runSuiteQLPaged ──
+    try {
+      let totalCount = 0;
+      let truncated = false;
+      const pagedResult = queryModule.runSuiteQLPaged({ query: sql, params: params, pageSize: pageSize || PAGED_SIZE });
+
+      pagedResult.iterator().each((page) => {
+        page.value.data.iterator().each((row) => {
+          rowFn(row);
+          totalCount++;
+          if (totalCount >= MAX_RESULTS) return false;
+          return true;
+        });
+        if (totalCount >= MAX_RESULTS) {
+          truncated = true;
+          return false;
+        }
+        return true;
+      });
+
+      if (totalCount > 0) {
+        log.debug({ title: 'PDC runSuiteQLAllRaw', details: 'Paged query returned ' + totalCount + ' rows (truncated=' + truncated + ')' });
+        return { truncated };
+      }
+      log.debug({ title: 'PDC runSuiteQLAllRaw', details: 'runSuiteQLPaged returned 0 rows — falling back' });
+    } catch (e) {
+      log.debug({ title: 'PDC runSuiteQLAllRaw', details: 'runSuiteQLPaged failed (' + e.message + ') — falling back' });
+    }
+
+    // ── Fallback: manual OFFSET/FETCH ──
+    const PAGE = pageSize || FALLBACK_PAGE;
     let offset = 0;
+    let totalCount = 0;
+    let truncated = false;
 
     while (true) {
+      const remaining = runtime.getCurrentScript().getRemainingUsage();
+      if (remaining < GOV_THRESHOLD) {
+        log.audit({ title: 'PDC runSuiteQLAllRaw', details: 'Stopping — governance remaining: ' + remaining + ', rows so far: ' + totalCount });
+        truncated = true;
+        break;
+      }
+
       const pagedSql = sql + ` OFFSET ${offset} ROWS FETCH NEXT ${PAGE} ROWS ONLY`;
       const resultSet = queryModule.runSuiteQL({ query: pagedSql, params: params });
 
@@ -164,9 +253,18 @@ define(['N/log'], (log) => {
         return true;
       });
 
+      totalCount += count;
       if (count < PAGE) break;
       offset += PAGE;
+
+      if (totalCount >= MAX_RESULTS) {
+        log.audit({ title: 'PDC runSuiteQLAllRaw', details: 'Max results cap reached: ' + totalCount });
+        truncated = true;
+        break;
+      }
     }
+
+    return { truncated };
   };
 
   /**

@@ -59,10 +59,11 @@ define(
     log.debug({ title: 'PDC invoiceGroups.serve finalQuery', details: 'SQL: ' + sql + ' | Params: ' + JSON.stringify(params) });
 
     const groups = [];
+    let truncated = false;
 
     // InvoiceGroup uses positional (non-mapped) results
     try {
-      qh.runSuiteQLAllRaw(query, sql, params, (row) => {
+      const rawResult = qh.runSuiteQLAllRaw(query, sql, params, (row) => {
         const v          = row.value.values;   // positional array
         const statusCode = (v[6] || '').toString().toUpperCase();
         const statusLabel = statusCode === 'PAIDFULL' ? 'Paid in Full'
@@ -83,7 +84,8 @@ define(
           statusCode: statusCode
         });
       });
-      log.debug({ title: 'PDC invoiceGroups.serve result', details: 'count=' + groups.length });
+      truncated = rawResult.truncated;
+      log.debug({ title: 'PDC invoiceGroups.serve result', details: 'count=' + groups.length + ' truncated=' + truncated });
     } catch (e) {
       log.error({ title: 'PDC invoiceGroups.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });
       throw e;
@@ -92,6 +94,7 @@ define(
     qh.writeJsonResponse(response, {
       success:  true,
       count:    groups.length,
+      truncated,
       invoices: groups          // kept as "invoices" for client-side compatibility
     });
   };
