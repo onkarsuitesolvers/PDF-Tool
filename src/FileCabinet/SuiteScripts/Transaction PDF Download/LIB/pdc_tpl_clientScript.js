@@ -189,12 +189,67 @@ function updateStatusOptions() {
 /* ─────────────────────────────────────────
    UNIFIED SEARCH DISPATCHER
 ───────────────────────────────────────── */
+/* ── Search progress overlay helpers ── */
+const SEARCH_PAGE_SIZE = 1000;
+
+function showSearchProgress() {
+  hideSearchProgress();
+  var overlay = document.createElement('div');
+  overlay.id = 'search-progress-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:99999;';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:12px;padding:2rem 2.5rem;box-shadow:0 8px 32px rgba(0,0,0,0.18);text-align:center;min-width:380px;';
+  // Spinner
+  var spinner = document.createElement('div');
+  spinner.style.cssText = 'width:48px;height:48px;border:4px solid #e0e0e0;border-top:4px solid #4d5f79;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 1rem auto;';
+  box.appendChild(spinner);
+  // Title
+  var title = document.createElement('div');
+  title.id = 'search-progress-title';
+  title.style.cssText = 'font-size:1.1rem;font-weight:600;color:#4d5f79;margin-bottom:0.75rem;';
+  title.textContent = 'Extracting search results...';
+  box.appendChild(title);
+  // Progress bar container
+  var barOuter = document.createElement('div');
+  barOuter.style.cssText = 'width:100%;height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden;margin-bottom:0.5rem;';
+  var barInner = document.createElement('div');
+  barInner.id = 'search-progress-bar';
+  barInner.style.cssText = 'width:0%;height:100%;background:linear-gradient(90deg,#4d5f79,#6b8cae);border-radius:4px;transition:width 0.3s ease;';
+  barOuter.appendChild(barInner);
+  box.appendChild(barOuter);
+  // Status text
+  var status = document.createElement('div');
+  status.id = 'search-progress-status';
+  status.style.cssText = 'font-size:0.85rem;color:#666;';
+  status.textContent = 'Starting search...';
+  box.appendChild(status);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
+
+function updateSearchProgress(fetched, total, typeLabel) {
+  var bar = document.getElementById('search-progress-bar');
+  var status = document.getElementById('search-progress-status');
+  var pct = total > 0 ? Math.round((fetched / total) * 100) : 0;
+  if (bar) bar.style.width = pct + '%';
+  if (status) status.textContent = 'Extracted ' + fetched + ' of ' + total + ' records' + (typeLabel ? ' (' + typeLabel + ')' : '');
+}
+
+function hideSearchProgress() {
+  var el = document.getElementById('search-progress-overlay');
+  if (el) el.remove();
+}
+
 async function doSearch() {
   const cfg = PAGE_CONFIG[currentPage];
   const btn = document.getElementById('btn-search');
   btn.disabled = true;
   const origLabel = cfg.searchLabel;
-  document.getElementById('btn-search-label').textContent = 'Searching…';
+  document.getElementById('btn-search-label').textContent = 'Searching...';
+
+  // Remove any previous truncation warning
+  var truncWarn = document.getElementById('truncation-warning');
+  if (truncWarn) truncWarn.remove();
 
   // Determine which transaction types to search
   const selTypes = msGetValues('trantype');
@@ -204,30 +259,30 @@ async function doSearch() {
   const allSelectedStatuses = msGetValues('status');
   console.log('[PDC doSearch] allSelectedStatuses=' + JSON.stringify(allSelectedStatuses) + ' typesToSearch=' + JSON.stringify(typesToSearch));
 
+  showSearchProgress();
+
   try {
     // Filter status codes per type so each search only gets its own relevant statuses
     function getStatusForType(typeKey) {
       if (allSelectedStatuses.length === 0) return '';
       const typeStatusIds = (PAGE_CONFIG[typeKey].statusOptions || []).map(o => String(o.id));
       const relevant = allSelectedStatuses.filter(s => typeStatusIds.includes(s));
-      // If statuses were selected but none match this type, skip this type entirely
       if (relevant.length === 0) return null;
       return relevant.join(',');
     }
 
-    // Build fetch promises in parallel for all applicable types
-    const fetchPromises = [];
-    const fetchTypeKeys = [];
+    let allInvoices = [];
+    let grandTotal = 0;
+    let grandFetched = 0;
 
     for (const typeKey of typesToSearch) {
       const typeCfg = PAGE_CONFIG[typeKey];
       if (!typeCfg) continue;
 
       const statusForType = getStatusForType(typeKey);
-      // null means statuses were selected but none apply to this type — skip it
       if (statusForType === null) continue;
 
-      const params = new URLSearchParams({
+      const baseParams = {
         action:     typeCfg.action,
         dateFrom:   document.getElementById('f-dateFrom').value,
         dateTo:     document.getElementById('f-dateTo').value,
@@ -235,48 +290,52 @@ async function doSearch() {
         subsidiary: msGetValues('subsidiary').join(','),
         status:     statusForType,
         tranId:     (document.getElementById('f-tranId').value || '').trim()
-      });
+      };
 
-      console.log('[PDC doSearch] type=' + typeKey + ' statusForType=' + JSON.stringify(statusForType) + ' fullParams=' + params.toString());
-      fetchPromises.push(fetch(BASE_URL + '&' + params.toString()));
-      fetchTypeKeys.push(typeKey);
-    }
-
-    // Await all fetches in parallel
-    const responses = await Promise.all(fetchPromises);
-    let allInvoices = [];
-    let anyTruncated = false;
-
-    for (let i = 0; i < responses.length; i++) {
-      const resp = responses[i];
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
-      console.log('[PDC doSearch] type=' + fetchTypeKeys[i] + ' response count=' + (data.count || 0) + ' success=' + data.success + ' truncated=' + !!data.truncated);
-      if (!data.success) throw new Error(data.error || 'Unknown error');
-      if (data.truncated) anyTruncated = true;
-
-      const typeKey  = fetchTypeKeys[i];
-      const typeCfg  = PAGE_CONFIG[typeKey];
       const typeLabel = typeCfg.typeLabel || typeKey;
-      const items = (data.invoices || []).map(inv => ({ ...inv, _typeLabel: typeLabel, _typeKey: typeKey }));
-      allInvoices = allInvoices.concat(items);
+      let offset = 0;
+      let typeTotal = 0;
+
+      // Fetch page by page for this type
+      while (true) {
+        const params = new URLSearchParams({
+          ...baseParams,
+          pageSize: SEARCH_PAGE_SIZE,
+          offset:   offset
+        });
+        console.log('[PDC doSearch] type=' + typeKey + ' offset=' + offset);
+
+        const resp = await fetch(BASE_URL + '&' + params.toString());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || 'Unknown error');
+
+        // On first page, learn total count for this type
+        if (offset === 0) {
+          typeTotal = data.total || data.count || 0;
+          grandTotal += typeTotal;
+        }
+
+        const items = (data.invoices || []).map(inv => ({ ...inv, _typeLabel: typeLabel, _typeKey: typeKey }));
+        allInvoices = allInvoices.concat(items);
+        grandFetched += items.length;
+
+        console.log('[PDC doSearch] type=' + typeKey + ' page returned ' + items.length + ' total=' + typeTotal + ' grandFetched=' + grandFetched + '/' + grandTotal);
+        updateSearchProgress(grandFetched, grandTotal, typeLabel);
+
+        // Stop if no more pages
+        if (!data.hasMore || items.length === 0) break;
+        offset += SEARCH_PAGE_SIZE;
+      }
     }
+
+    // Update title to rendering phase
+    var title = document.getElementById('search-progress-title');
+    if (title) title.textContent = 'Rendering ' + allInvoices.length + ' results...';
 
     invoices = allInvoices;
     renderTable(invoices);
     setStats(invoices.length, 0, 0);
-
-    // Show truncation warning if any result set was capped
-    var truncWarn = document.getElementById('truncation-warning');
-    if (truncWarn) truncWarn.remove();
-    if (anyTruncated) {
-      var warn = document.createElement('div');
-      warn.id = 'truncation-warning';
-      warn.style.cssText = 'background:#fef3cd;color:#856404;border:1px solid #ffc107;border-radius:6px;padding:0.6rem 1rem;margin-bottom:0.75rem;font-size:0.85rem;';
-      warn.textContent = 'Results were limited to prevent timeout. Please narrow your search with filters or a shorter date range for complete results.';
-      var tc = document.getElementById('table-container');
-      if (tc) tc.parentNode.insertBefore(warn, tc);
-    }
 
     if (invoices.length === 0) {
       document.getElementById('table-container').classList.remove('show');
@@ -292,6 +351,7 @@ async function doSearch() {
     document.getElementById('table-container').classList.add('show');
     document.getElementById('empty-state').classList.remove('show');
   } finally {
+    hideSearchProgress();
     btn.disabled = false;
     document.getElementById('btn-search-label').textContent = origLabel;
   }

@@ -56,34 +56,37 @@ define(
 
     log.debug({ title: 'PDC creditMemos.serve finalQuery', details: 'SQL: ' + sql + ' | Params: ' + JSON.stringify(params) });
 
-    let memos = [];
-    let truncated = false;
+    const mapRow = (row) => ({
+      id:         row.id,
+      tranId:     row.tranid || `CM-${row.id}`,
+      customer:   row.customername || 'Unknown',
+      date:       row.trandate,
+      amount:     row.amount,
+      remaining:  row.remaining,
+      currency:   row.currency,
+      status:     row.statuslabel || '',
+      statusCode: row.statuscode  || ''
+    });
+
+    const reqPageSize = parseInt(p.pageSize, 10) || 0;
+    const reqOffset   = parseInt(p.offset, 10)   || 0;
+
     try {
-      const result = qh.runSuiteQLAll(query, sql, params, (row) => ({
-        id:         row.id,
-        tranId:     row.tranid || `CM-${row.id}`,
-        customer:   row.customername || 'Unknown',
-        date:       row.trandate,
-        amount:     row.amount,
-        remaining:  row.remaining,
-        currency:   row.currency,
-        status:     row.statuslabel || '',
-        statusCode: row.statuscode  || ''
-      }));
-      memos     = result.results;
-      truncated = result.truncated;
-      log.debug({ title: 'PDC creditMemos.serve result', details: 'count=' + memos.length + ' truncated=' + truncated });
+      if (reqPageSize > 0) {
+        const total = qh.runSuiteQLCount(query, sql, params);
+        const memos = qh.runSuiteQLPage(query, sql, params, mapRow, reqOffset, reqPageSize);
+        const hasMore = (reqOffset + memos.length) < total;
+        log.debug({ title: 'PDC creditMemos.serve paged', details: 'offset=' + reqOffset + ' page=' + memos.length + ' total=' + total });
+        qh.writeJsonResponse(response, { success: true, count: memos.length, total, hasMore, invoices: memos });
+      } else {
+        const result = qh.runSuiteQLAll(query, sql, params, mapRow);
+        log.debug({ title: 'PDC creditMemos.serve result', details: 'count=' + result.results.length });
+        qh.writeJsonResponse(response, { success: true, count: result.results.length, invoices: result.results });
+      }
     } catch (e) {
       log.error({ title: 'PDC creditMemos.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });
       throw e;
     }
-
-    qh.writeJsonResponse(response, {
-      success:  true,
-      count:    memos.length,
-      truncated,
-      invoices: memos          // kept as "invoices" for client-side compatibility
-    });
   };
 
   return { serve };

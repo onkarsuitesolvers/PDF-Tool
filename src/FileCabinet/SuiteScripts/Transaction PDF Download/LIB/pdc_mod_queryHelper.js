@@ -10,7 +10,6 @@
  */
 define(['N/log', 'N/runtime'], (log, runtime) => {
 
-  const MAX_RESULTS   = 4000;   // hard cap — prevents governance exhaustion
   const PAGED_SIZE    = 1000;   // pageSize for runSuiteQLPaged
   const FALLBACK_PAGE = 1000;   // rows per runSuiteQL call (fallback)
   const GOV_THRESHOLD = 500;    // stop pagination when remaining units drop below this
@@ -129,24 +128,18 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
     // ── Primary: runSuiteQLPaged (governance-efficient) ──
     try {
       const results = [];
-      let truncated = false;
       const pagedResult = queryModule.runSuiteQLPaged({ query: sql, params: params, pageSize: pageSize || PAGED_SIZE });
 
       pagedResult.iterator().each((page) => {
         page.value.data.asMappedResults().forEach((row) => {
           results.push(mapFn(row));
         });
-        if (results.length >= MAX_RESULTS) {
-          truncated = true;
-          return false;   // stop iterating pages
-        }
         return true;
       });
 
       if (results.length > 0) {
-        if (results.length >= MAX_RESULTS) truncated = true;
-        log.debug({ title: 'PDC runSuiteQLAll', details: 'Paged query returned ' + results.length + ' rows (truncated=' + truncated + ')' });
-        return { results, truncated };
+        log.debug({ title: 'PDC runSuiteQLAll', details: 'Paged query returned ' + results.length + ' rows' });
+        return { results, truncated: false };
       }
       log.debug({ title: 'PDC runSuiteQLAll', details: 'runSuiteQLPaged returned 0 rows — falling back to manual pagination' });
     } catch (e) {
@@ -175,12 +168,6 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
 
       if (rows.length < PAGE) break;
       offset += PAGE;
-
-      if (results.length >= MAX_RESULTS) {
-        log.audit({ title: 'PDC runSuiteQLAll', details: 'Max results cap reached: ' + results.length });
-        truncated = true;
-        break;
-      }
     }
 
     return { results, truncated };
@@ -203,26 +190,20 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
     // ── Primary: runSuiteQLPaged ──
     try {
       let totalCount = 0;
-      let truncated = false;
       const pagedResult = queryModule.runSuiteQLPaged({ query: sql, params: params, pageSize: pageSize || PAGED_SIZE });
 
       pagedResult.iterator().each((page) => {
         page.value.data.iterator().each((row) => {
           rowFn(row);
           totalCount++;
-          if (totalCount >= MAX_RESULTS) return false;
           return true;
         });
-        if (totalCount >= MAX_RESULTS) {
-          truncated = true;
-          return false;
-        }
         return true;
       });
 
       if (totalCount > 0) {
-        log.debug({ title: 'PDC runSuiteQLAllRaw', details: 'Paged query returned ' + totalCount + ' rows (truncated=' + truncated + ')' });
-        return { truncated };
+        log.debug({ title: 'PDC runSuiteQLAllRaw', details: 'Paged query returned ' + totalCount + ' rows' });
+        return { truncated: false };
       }
       log.debug({ title: 'PDC runSuiteQLAllRaw', details: 'runSuiteQLPaged returned 0 rows — falling back' });
     } catch (e) {
@@ -256,12 +237,6 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
       totalCount += count;
       if (count < PAGE) break;
       offset += PAGE;
-
-      if (totalCount >= MAX_RESULTS) {
-        log.audit({ title: 'PDC runSuiteQLAllRaw', details: 'Max results cap reached: ' + totalCount });
-        truncated = true;
-        break;
-      }
     }
 
     return { truncated };
@@ -315,6 +290,59 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
     return codes.map(c => "'" + c + "'").join(',');
   };
 
+  /**
+   * Run a single page of a SuiteQL query (mapped results).
+   *
+   * @param {Object}   queryModule  N/query
+   * @param {string}   sql          Base SQL (WITHOUT OFFSET/FETCH)
+   * @param {any[]}    params       Bind parameters
+   * @param {Function} mapFn        (row) => mapped object
+   * @param {number}   offset       Row offset (0-based)
+   * @param {number}   pageSize     Rows per page
+   * @returns {Object[]}  Mapped rows for this page
+   */
+  const runSuiteQLPage = (queryModule, sql, params, mapFn, offset, pageSize) => {
+    const pagedSql = sql + ` OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`;
+    const rows = queryModule.runSuiteQL({ query: pagedSql, params }).asMappedResults();
+    return rows.map(mapFn);
+  };
+
+  /**
+   * Run a single page of a SuiteQL query (positional/raw results).
+   *
+   * @param {Object}   queryModule  N/query
+   * @param {string}   sql          Base SQL (WITHOUT OFFSET/FETCH)
+   * @param {any[]}    params       Bind parameters
+   * @param {Function} mapFn        (row) => mapped object  — receives iterator row
+   * @param {number}   offset       Row offset (0-based)
+   * @param {number}   pageSize     Rows per page
+   * @returns {Object[]}  Mapped rows for this page
+   */
+  const runSuiteQLPageRaw = (queryModule, sql, params, mapFn, offset, pageSize) => {
+    const pagedSql = sql + ` OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`;
+    const resultSet = queryModule.runSuiteQL({ query: pagedSql, params });
+    const results = [];
+    resultSet.iterator().each((row) => {
+      results.push(mapFn(row));
+      return true;
+    });
+    return results;
+  };
+
+  /**
+   * Count total rows for a query.
+   *
+   * @param {Object}   queryModule  N/query
+   * @param {string}   sql          Base SQL
+   * @param {any[]}    params       Bind parameters
+   * @returns {number}
+   */
+  const runSuiteQLCount = (queryModule, sql, params) => {
+    const countSql = `SELECT COUNT(*) AS cnt FROM (${sql})`;
+    const rows = queryModule.runSuiteQL({ query: countSql, params }).asMappedResults();
+    return rows.length > 0 ? parseInt(rows[0].cnt, 10) : 0;
+  };
+
   return {
     parseIdList,
     pushIdFilter,
@@ -322,6 +350,9 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
     collectPagedResults,
     runSuiteQLAll,
     runSuiteQLAllRaw,
+    runSuiteQLPage,
+    runSuiteQLPageRaw,
+    runSuiteQLCount,
     writeJsonResponse,
     normalizeStatusCode,
     statusInLiteral

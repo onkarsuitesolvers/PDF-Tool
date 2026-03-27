@@ -56,34 +56,39 @@ define(
 
     log.debug({ title: 'PDC invoices.serve finalQuery', details: 'SQL: ' + sql + ' | Params: ' + JSON.stringify(params) });
 
-    let invoices = [];
-    let truncated = false;
+    const mapRow = (row) => ({
+      id:         row.id,
+      tranId:     row.tranid || `INV-${row.id}`,
+      customer:   row.customername || 'Unknown',
+      date:       row.trandate,
+      dueDate:    row.duedate || '',
+      amount:     row.amount,
+      currency:   row.currency,
+      status:     row.statuslabel || '',
+      statusCode: row.statuscode  || ''
+    });
+
+    const reqPageSize = parseInt(p.pageSize, 10) || 0;
+    const reqOffset   = parseInt(p.offset, 10)   || 0;
+
     try {
-      const result = qh.runSuiteQLAll(query, sql, params, (row) => ({
-        id:         row.id,
-        tranId:     row.tranid || `INV-${row.id}`,
-        customer:   row.customername || 'Unknown',
-        date:       row.trandate,
-        dueDate:    row.duedate || '',
-        amount:     row.amount,
-        currency:   row.currency,
-        status:     row.statuslabel || '',
-        statusCode: row.statuscode  || ''
-      }));
-      invoices  = result.results;
-      truncated = result.truncated;
-      log.debug({ title: 'PDC invoices.serve result', details: 'count=' + invoices.length + ' truncated=' + truncated });
+      if (reqPageSize > 0) {
+        // Paged mode: return one page + total count
+        const total = qh.runSuiteQLCount(query, sql, params);
+        const invoices = qh.runSuiteQLPage(query, sql, params, mapRow, reqOffset, reqPageSize);
+        const hasMore = (reqOffset + invoices.length) < total;
+        log.debug({ title: 'PDC invoices.serve paged', details: 'offset=' + reqOffset + ' page=' + invoices.length + ' total=' + total });
+        qh.writeJsonResponse(response, { success: true, count: invoices.length, total, hasMore, invoices });
+      } else {
+        // Full mode: return all results
+        const result = qh.runSuiteQLAll(query, sql, params, mapRow);
+        log.debug({ title: 'PDC invoices.serve result', details: 'count=' + result.results.length });
+        qh.writeJsonResponse(response, { success: true, count: result.results.length, invoices: result.results });
+      }
     } catch (e) {
       log.error({ title: 'PDC invoices.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });
       throw e;
     }
-
-    qh.writeJsonResponse(response, {
-      success: true,
-      count:   invoices.length,
-      truncated,
-      invoices
-    });
   };
 
   return { serve };
