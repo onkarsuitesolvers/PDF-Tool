@@ -43,6 +43,12 @@ let failedCount   = 0;
 const rowStatus   = {};
 let currentPage   = 'invoices'; // 'invoices' | 'creditmemos' | 'invoicegroups'
 
+/* ── Pagination state ── */
+let currentTablePage = 1;
+let rowsPerPage      = 50;
+let allSelected      = false;
+const selectedIds    = new Set();
+
 /* ─────────────────────────────────────────
    PAGE CONFIG  — drives all dynamic UI
 ───────────────────────────────────────── */
@@ -685,9 +691,7 @@ async function downloadSingle(id, tranId) {
 ───────────────────────────────────────── */
 function renderTable(list) {
   const cfg   = PAGE_CONFIG[currentPage];
-  const tbody = document.getElementById('inv-tbody');
   const thead = document.getElementById('inv-thead');
-  tbody.innerHTML = '';
 
   // Detect if results contain multiple types
   const typeKeys = new Set(list.map(item => item._typeKey).filter(Boolean));
@@ -706,7 +710,36 @@ function renderTable(list) {
   const cbAll = document.getElementById('cb-all');
   if (cbAll) cbAll.onchange = function() { onSelectAll(this); };
 
-  // Resolve renderer by string key (avoids forward-reference issues)
+  // Init rowStatus for ALL items
+  list.forEach((item) => { rowStatus[item.id] = 'pending'; });
+
+  // Reset pagination and selection
+  currentTablePage = 1;
+  allSelected = false;
+  selectedIds.clear();
+
+  document.getElementById('table-meta').textContent = list.length + ' transactions';
+  renderTablePage();
+}
+
+/* ── Render only the current page slice ── */
+function renderTablePage() {
+  const cfg   = PAGE_CONFIG[currentPage];
+  const tbody = document.getElementById('inv-tbody');
+  tbody.innerHTML = '';
+
+  const total = invoices.length;
+  const isAllMode = rowsPerPage === 0; // 0 = show all
+  const perPage = isAllMode ? total : rowsPerPage;
+  const totalPages = isAllMode ? 1 : Math.max(1, Math.ceil(total / perPage));
+
+  if (currentTablePage > totalPages) currentTablePage = totalPages;
+
+  const startIdx = (currentTablePage - 1) * perPage;
+  const endIdx   = Math.min(startIdx + perPage, total);
+  const pageSlice = invoices.slice(startIdx, endIdx);
+
+  // Resolve renderer by string key
   const renderers = {
     renderInvoiceRow,
     renderCreditMemoRow,
@@ -714,16 +747,123 @@ function renderTable(list) {
   };
   const defaultRenderer = renderers[cfg.rowRendererKey];
 
-  list.forEach((item) => {
-    rowStatus[item.id] = 'pending';
-    // Use per-item renderer when items carry their own _typeKey (mixed-type search)
+  pageSlice.forEach((item) => {
     const itemCfg = item._typeKey ? PAGE_CONFIG[item._typeKey] : null;
     const rowRenderer = (itemCfg ? renderers[itemCfg.rowRendererKey] : null) || defaultRenderer;
     const tr = rowRenderer(item);
     tbody.appendChild(tr);
   });
 
-  document.getElementById('table-meta').textContent = list.length + ' transactions';
+  // Restore checkbox state for visible rows
+  document.querySelectorAll('.row-cb').forEach(cb => {
+    const id = cb.dataset.id;
+    cb.checked = allSelected || selectedIds.has(id);
+  });
+
+  // Sync header checkbox
+  const cbAll = document.getElementById('cb-all');
+  if (cbAll) {
+    const visibleCbs = document.querySelectorAll('.row-cb');
+    cbAll.checked = visibleCbs.length > 0 && [...visibleCbs].every(c => c.checked);
+  }
+
+  // Update download button state
+  onRowCheck();
+
+  // Render pagination controls
+  renderPaginationControls(total, totalPages, startIdx, endIdx);
+}
+
+/* ── Pagination controls renderer ── */
+function renderPaginationControls(total, totalPages, startIdx, endIdx) {
+  const container = document.getElementById('pagination-controls');
+  if (!container) return;
+
+  if (total <= 0) { container.style.display = 'none'; return; }
+  container.style.display = 'flex';
+
+  // Rows per page options
+  const options = [25, 50, 100, 250, 500];
+  const optionsHtml = options.map(n =>
+    \`<option value="\${n}" \${rowsPerPage === n ? 'selected' : ''}>\${n}</option>\`
+  ).join('') + \`<option value="0" \${rowsPerPage === 0 ? 'selected' : ''}>All</option>\`;
+
+  // Page buttons
+  let pagesHtml = '';
+  if (totalPages > 1) {
+    pagesHtml += \`<button class="pg-btn" \${currentTablePage <= 1 ? 'disabled' : ''} onclick="goToTablePage(1)" title="First page">&laquo;</button>\`;
+    pagesHtml += \`<button class="pg-btn" \${currentTablePage <= 1 ? 'disabled' : ''} onclick="goToTablePage(\${currentTablePage - 1})" title="Previous page">&lsaquo;</button>\`;
+
+    const pages = getVisiblePages(currentTablePage, totalPages);
+    pages.forEach(p => {
+      if (p === '...') {
+        pagesHtml += \`<span class="pg-ellipsis">…</span>\`;
+      } else {
+        pagesHtml += \`<button class="pg-btn \${p === currentTablePage ? 'pg-active' : ''}" onclick="goToTablePage(\${p})">\${p}</button>\`;
+      }
+    });
+
+    pagesHtml += \`<button class="pg-btn" \${currentTablePage >= totalPages ? 'disabled' : ''} onclick="goToTablePage(\${currentTablePage + 1})" title="Next page">&rsaquo;</button>\`;
+    pagesHtml += \`<button class="pg-btn" \${currentTablePage >= totalPages ? 'disabled' : ''} onclick="goToTablePage(\${totalPages})" title="Last page">&raquo;</button>\`;
+  }
+
+  container.innerHTML = \`
+    <div class="pg-rows-wrap">
+      Rows per page:
+      <select class="pg-rows-select" onchange="changeRowsPerPage(this.value)">\${optionsHtml}</select>
+      <input class="pg-rows-input" type="number" min="1" placeholder="#" title="Type a custom number of rows"
+        onkeydown="if(event.key==='Enter'){applyCustomRows(this.value);}" />
+    </div>
+    <div class="pg-info">Showing \${total === 0 ? 0 : startIdx + 1}–\${endIdx} of \${total}</div>
+    <div class="pg-nav">\${pagesHtml}</div>
+  \`;
+}
+
+/* ── Compute which page numbers to show ── */
+function getVisiblePages(current, total) {
+  if (total <= 7) return Array.from({length: total}, (_, i) => i + 1);
+  const pages = [];
+  pages.push(1);
+  if (current > 3) pages.push('...');
+  for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) {
+    pages.push(i);
+  }
+  if (current < total - 2) pages.push('...');
+  pages.push(total);
+  return pages;
+}
+
+function goToTablePage(page) {
+  const total = invoices.length;
+  const perPage = rowsPerPage === 0 ? total : rowsPerPage;
+  const totalPages = rowsPerPage === 0 ? 1 : Math.max(1, Math.ceil(total / perPage));
+  if (page < 1 || page > totalPages) return;
+  currentTablePage = page;
+  renderTablePage();
+  // Scroll table to top
+  const scroll = document.querySelector('.table-scroll');
+  if (scroll) scroll.scrollTop = 0;
+}
+
+function changeRowsPerPage(val) {
+  const n = parseInt(val, 10);
+  rowsPerPage = isNaN(n) ? 50 : n;
+  currentTablePage = 1;
+  renderTablePage();
+}
+
+function applyCustomRows(val) {
+  const n = parseInt(val, 10);
+  if (!n || n < 1) return;
+  rowsPerPage = n;
+  currentTablePage = 1;
+  // Update dropdown to deselect preset if custom value doesn't match
+  const sel = document.querySelector('.pg-rows-select');
+  if (sel) {
+    const match = [...sel.options].find(o => parseInt(o.value, 10) === n);
+    sel.value = match ? match.value : '';
+  }
+  renderTablePage();
 }
 
 /* ── Invoice row ── */
@@ -856,26 +996,59 @@ function formatAmt(val, currency) {
    SELECTION HELPERS
 ───────────────────────────────────────── */
 function getSelectedInvoices() {
-  const checked = [...document.querySelectorAll('.row-cb:checked')];
-  const ids = new Set(checked.map(c => c.dataset.id));
-  return ids.size > 0 ? invoices.filter(inv => ids.has(String(inv.id))) : invoices;
+  if (allSelected) return invoices;
+  return selectedIds.size > 0 ? invoices.filter(inv => selectedIds.has(String(inv.id))) : [];
 }
 
 function onRowCheck() {
-  const any = document.querySelectorAll('.row-cb:checked').length > 0;
-  document.getElementById('btn-dl-selected').disabled = !any;
+  // Sync selectedIds with visible checkboxes
+  document.querySelectorAll('.row-cb').forEach(cb => {
+    const id = cb.dataset.id;
+    if (cb.checked) {
+      selectedIds.add(id);
+    } else {
+      selectedIds.delete(id);
+      allSelected = false;
+    }
+  });
+
+  // Update header checkbox
+  const visibleCbs = document.querySelectorAll('.row-cb');
+  const cbAll = document.getElementById('cb-all');
+  if (cbAll && visibleCbs.length > 0) {
+    cbAll.checked = [...visibleCbs].every(c => c.checked);
+  }
+
+  // Update download button
+  const anySelected = allSelected || selectedIds.size > 0;
+  document.getElementById('btn-dl-selected').disabled = !anySelected;
 }
 
 function onSelectAll(cb) {
+  if (cb.checked) {
+    allSelected = true;
+    invoices.forEach(inv => selectedIds.add(String(inv.id)));
+  } else {
+    allSelected = false;
+    selectedIds.clear();
+  }
   document.querySelectorAll('.row-cb').forEach(c => c.checked = cb.checked);
   onRowCheck();
 }
 
 function toggleSelectAll() {
-  const cbs = document.querySelectorAll('.row-cb');
-  const allChecked = [...cbs].every(c => c.checked);
-  cbs.forEach(c => c.checked = !allChecked);
-  document.getElementById('cb-all').checked = !allChecked;
+  const wasAllSelected = allSelected && selectedIds.size === invoices.length;
+  if (wasAllSelected) {
+    allSelected = false;
+    selectedIds.clear();
+    document.querySelectorAll('.row-cb').forEach(c => c.checked = false);
+    document.getElementById('cb-all').checked = false;
+  } else {
+    allSelected = true;
+    invoices.forEach(inv => selectedIds.add(String(inv.id)));
+    document.querySelectorAll('.row-cb').forEach(c => c.checked = true);
+    document.getElementById('cb-all').checked = true;
+  }
   onRowCheck();
 }
 
@@ -915,8 +1088,12 @@ function resetAndClose() {
     document.getElementById('folder-tip').style.display = 'flex';
     document.querySelectorAll('.qf').forEach(q => q.classList.remove('active'));
   }
+  allSelected = false;
+  selectedIds.clear();
+  currentTablePage = 1;
   setStats(invoices.length, 0, 0);
   invoices.forEach(inv => setRowStatus(inv.id, 'pending'));
+  renderTablePage();
   closeModal();
 }
 
