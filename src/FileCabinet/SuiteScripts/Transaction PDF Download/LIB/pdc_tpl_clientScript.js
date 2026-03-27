@@ -340,6 +340,9 @@ async function doSearch() {
         allInvoices = allInvoices.concat(items);
         grandFetched += items.length;
 
+        // If actual fetched exceeds initial COUNT estimate, correct grandTotal
+        if (grandFetched > grandTotal) grandTotal = grandFetched;
+
         console.log('[PDC doSearch] type=' + typeKey + ' page returned ' + items.length + ' total=' + typeTotal + ' grandFetched=' + grandFetched + '/' + grandTotal);
         updateSearchProgress(grandFetched, grandTotal, typeLabel);
 
@@ -349,9 +352,16 @@ async function doSearch() {
       }
     }
 
-    // Update title to rendering phase
+    // Update overlay to rendering phase and let the browser paint before heavy DOM work
     var title = document.getElementById('search-progress-title');
-    if (title) title.textContent = 'Rendering ' + allInvoices.length + ' results...';
+    if (title) title.textContent = 'Please wait, rendering ' + allInvoices.length + ' records to screen...';
+    var bar = document.getElementById('search-progress-bar');
+    if (bar) bar.style.width = '100%';
+    var status = document.getElementById('search-progress-status');
+    if (status) status.textContent = 'Extracted ' + allInvoices.length + ' records — rendering table...';
+
+    // Yield to browser so the rendering message is visible before the heavy renderTable call
+    await new Promise(function (resolve) { requestAnimationFrame(function () { setTimeout(resolve, 50); }); });
 
     invoices = allInvoices;
     renderTable(invoices);
