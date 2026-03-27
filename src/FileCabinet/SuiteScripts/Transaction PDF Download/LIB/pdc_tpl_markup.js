@@ -210,6 +210,7 @@ define([], () => {
         <tbody id="inv-tbody"></tbody>
       </table>
     </div>
+    <div id="pagination-controls" class="pagination-controls" style="display:none"></div>
   </div>
 
   <!-- Empty state -->

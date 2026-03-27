@@ -41,13 +41,13 @@ define(
 
     const sql = `
       SELECT
-        BUILTIN_RESULT.TYPE_INTEGER(InvoiceGroup.id)                                                       AS id,
-        BUILTIN_RESULT.TYPE_STRING(InvoiceGroup.invoicegroupnumber)                                        AS invoicegroupnumber,
-        BUILTIN_RESULT.TYPE_STRING(BUILTIN.DF(InvoiceGroup.customer))                                      AS customername,
-        BUILTIN_RESULT.TYPE_DATE(InvoiceGroup.trandate)                                                    AS trandate,
-        BUILTIN_RESULT.TYPE_DATE(InvoiceGroup.duedate)                                                     AS duedate,
-        BUILTIN_RESULT.TYPE_CURRENCY(InvoiceGroup.amountdue, BUILTIN.CURRENCY(InvoiceGroup.amountdue))     AS amountdue,
-        BUILTIN_RESULT.TYPE_STRING(InvoiceGroup.status)                                                    AS statuscode
+        InvoiceGroup.id                                    AS id,
+        InvoiceGroup.invoicegroupnumber                    AS invoicegroupnumber,
+        BUILTIN.DF(InvoiceGroup.customer)                  AS customername,
+        TO_CHAR(InvoiceGroup.trandate, 'YYYY-MM-DD')      AS trandate,
+        TO_CHAR(InvoiceGroup.duedate,  'YYYY-MM-DD')      AS duedate,
+        InvoiceGroup.amountdue                             AS amountdue,
+        InvoiceGroup.status                                AS statuscode
       FROM InvoiceGroup
       WHERE ${conditions.join(' AND ')}
       ORDER BY InvoiceGroup.trandate DESC, InvoiceGroup.id DESC
@@ -94,7 +94,7 @@ define(
       }
     } catch (e) {
       log.error({ title: 'PDC invoiceGroups.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });
-      throw e;
+      qh.writeJsonResponse(response, { success: false, error: e.message || 'Invoice Group query failed' });
     }
   };
 

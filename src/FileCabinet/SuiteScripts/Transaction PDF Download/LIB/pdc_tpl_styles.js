@@ -199,7 +199,7 @@ body::before {
 .table-meta { font-size: 13.5px; color: var(--text-muted); margin-top: 2px; }
 .table-actions { display: flex; gap: 8px; align-items: center; }
 
-.table-scroll { max-height: 380px; overflow-y: auto; }
+.table-scroll { max-height: 520px; overflow-y: auto; }
 table { width: 100%; border-collapse: collapse; }
 thead tr { background: #F2FAFA; border-bottom: 1px solid var(--border); }
 th {
@@ -220,6 +220,55 @@ tbody tr.row-err    { background: var(--rose-pale); }
 td { padding: 13px 14px; font-size: 14.5px; color: var(--text-primary); vertical-align: middle; }
 td:first-child { padding-left: 20px; }
 td:last-child  { padding-right: 20px; text-align: right; }
+
+/* ── Pagination controls ── */
+.pagination-controls {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 20px; border-top: 1px solid var(--border);
+  background: linear-gradient(135deg, #F2FAFA, #FAFCFC);
+  gap: 12px; flex-wrap: wrap;
+}
+.pg-rows-wrap {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text-secondary);
+}
+.pg-rows-select {
+  padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--card); color: var(--text-primary); font-size: 13px;
+  cursor: pointer; outline: none;
+}
+.pg-rows-select:focus { border-color: var(--teal-bright); box-shadow: 0 0 0 2px #2E9E9E20; }
+.pg-rows-input {
+  width: 56px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--card); color: var(--text-primary); font-size: 13px;
+  text-align: center; outline: none;
+}
+.pg-rows-input:focus { border-color: var(--teal-bright); box-shadow: 0 0 0 2px #2E9E9E20; }
+.pg-info {
+  font-size: 13px; color: var(--text-muted); white-space: nowrap;
+}
+.pg-nav {
+  display: flex; align-items: center; gap: 4px;
+}
+.pg-btn {
+  min-width: 32px; height: 32px; padding: 0 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px; border: 1px solid var(--border);
+  background: var(--card); color: var(--text-secondary);
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: all 0.15s;
+}
+.pg-btn:hover:not(:disabled):not(.pg-active) { background: var(--surface); border-color: var(--teal-bright); color: var(--teal-mid); }
+.pg-btn:disabled { opacity: 0.4; cursor: default; }
+.pg-active {
+  background: var(--teal-mid); color: #fff; border-color: var(--teal-mid);
+  font-weight: 700;
+}
+.pg-ellipsis {
+  min-width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; color: var(--text-muted);
+}
 
 .cb-wrap { display: flex; align-items: center; }
 input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid); cursor: pointer; }

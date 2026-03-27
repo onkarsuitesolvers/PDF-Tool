@@ -87,7 +87,7 @@ define(
       }
     } catch (e) {
       log.error({ title: 'PDC invoices.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });
-      throw e;
+      qh.writeJsonResponse(response, { success: false, error: e.message || 'Invoice query failed' });
     }
   };
 
