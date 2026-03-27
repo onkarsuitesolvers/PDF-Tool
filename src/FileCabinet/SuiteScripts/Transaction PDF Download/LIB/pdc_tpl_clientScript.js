@@ -190,14 +190,15 @@ function updateStatusOptions() {
    UNIFIED SEARCH DISPATCHER
 ───────────────────────────────────────── */
 /* ── Search progress overlay helpers ── */
-function showSearchProgress(totalTypes) {
-  // Remove any previous overlay
+const SEARCH_PAGE_SIZE = 1000;
+
+function showSearchProgress() {
   hideSearchProgress();
   var overlay = document.createElement('div');
   overlay.id = 'search-progress-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:99999;';
   var box = document.createElement('div');
-  box.style.cssText = 'background:#fff;border-radius:12px;padding:2rem 2.5rem;box-shadow:0 8px 32px rgba(0,0,0,0.18);text-align:center;min-width:340px;';
+  box.style.cssText = 'background:#fff;border-radius:12px;padding:2rem 2.5rem;box-shadow:0 8px 32px rgba(0,0,0,0.18);text-align:center;min-width:380px;';
   // Spinner
   var spinner = document.createElement('div');
   spinner.style.cssText = 'width:48px;height:48px;border:4px solid #e0e0e0;border-top:4px solid #4d5f79;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 1rem auto;';
@@ -220,19 +221,18 @@ function showSearchProgress(totalTypes) {
   var status = document.createElement('div');
   status.id = 'search-progress-status';
   status.style.cssText = 'font-size:0.85rem;color:#666;';
-  status.textContent = 'Fetching 0 of ' + totalTypes + ' search types...';
+  status.textContent = 'Starting search...';
   box.appendChild(status);
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 }
 
-function updateSearchProgress(completed, totalTypes, totalRows) {
+function updateSearchProgress(fetched, total, typeLabel) {
   var bar = document.getElementById('search-progress-bar');
   var status = document.getElementById('search-progress-status');
-  var title = document.getElementById('search-progress-title');
-  if (bar) bar.style.width = Math.round((completed / totalTypes) * 100) + '%';
-  if (status) status.textContent = 'Fetched ' + completed + ' of ' + totalTypes + ' search types (' + totalRows + ' records so far)';
-  if (title && completed === totalTypes) title.textContent = 'Rendering results...';
+  var pct = total > 0 ? Math.round((fetched / total) * 100) : 0;
+  if (bar) bar.style.width = pct + '%';
+  if (status) status.textContent = 'Extracted ' + fetched + ' of ' + total + ' records' + (typeLabel ? ' (' + typeLabel + ')' : '');
 }
 
 function hideSearchProgress() {
@@ -259,29 +259,30 @@ async function doSearch() {
   const allSelectedStatuses = msGetValues('status');
   console.log('[PDC doSearch] allSelectedStatuses=' + JSON.stringify(allSelectedStatuses) + ' typesToSearch=' + JSON.stringify(typesToSearch));
 
+  showSearchProgress();
+
   try {
     // Filter status codes per type so each search only gets its own relevant statuses
     function getStatusForType(typeKey) {
       if (allSelectedStatuses.length === 0) return '';
       const typeStatusIds = (PAGE_CONFIG[typeKey].statusOptions || []).map(o => String(o.id));
       const relevant = allSelectedStatuses.filter(s => typeStatusIds.includes(s));
-      // If statuses were selected but none match this type, skip this type entirely
       if (relevant.length === 0) return null;
       return relevant.join(',');
     }
 
-    // Build fetch promises for all applicable types
-    const fetchEntries = [];
+    let allInvoices = [];
+    let grandTotal = 0;
+    let grandFetched = 0;
 
     for (const typeKey of typesToSearch) {
       const typeCfg = PAGE_CONFIG[typeKey];
       if (!typeCfg) continue;
 
       const statusForType = getStatusForType(typeKey);
-      // null means statuses were selected but none apply to this type — skip it
       if (statusForType === null) continue;
 
-      const params = new URLSearchParams({
+      const baseParams = {
         action:     typeCfg.action,
         dateFrom:   document.getElementById('f-dateFrom').value,
         dateTo:     document.getElementById('f-dateTo').value,
@@ -289,36 +290,48 @@ async function doSearch() {
         subsidiary: msGetValues('subsidiary').join(','),
         status:     statusForType,
         tranId:     (document.getElementById('f-tranId').value || '').trim()
-      });
+      };
 
-      console.log('[PDC doSearch] type=' + typeKey + ' statusForType=' + JSON.stringify(statusForType) + ' fullParams=' + params.toString());
-      fetchEntries.push({ typeKey, typeCfg, url: BASE_URL + '&' + params.toString() });
-    }
+      const typeLabel = typeCfg.typeLabel || typeKey;
+      let offset = 0;
+      let typeTotal = 0;
 
-    const totalTypes = fetchEntries.length;
-    showSearchProgress(totalTypes);
+      // Fetch page by page for this type
+      while (true) {
+        const params = new URLSearchParams({
+          ...baseParams,
+          pageSize: SEARCH_PAGE_SIZE,
+          offset:   offset
+        });
+        console.log('[PDC doSearch] type=' + typeKey + ' offset=' + offset);
 
-    let allInvoices = [];
-    let completed = 0;
-
-    // Fetch all types in parallel, update progress as each completes
-    const fetchPromises = fetchEntries.map(entry =>
-      fetch(entry.url).then(async (resp) => {
+        const resp = await fetch(BASE_URL + '&' + params.toString());
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
-        console.log('[PDC doSearch] type=' + entry.typeKey + ' response count=' + (data.count || 0) + ' success=' + data.success);
         if (!data.success) throw new Error(data.error || 'Unknown error');
 
-        const typeLabel = entry.typeCfg.typeLabel || entry.typeKey;
-        const items = (data.invoices || []).map(inv => ({ ...inv, _typeLabel: typeLabel, _typeKey: entry.typeKey }));
-        allInvoices = allInvoices.concat(items);
-        completed++;
-        updateSearchProgress(completed, totalTypes, allInvoices.length);
-        return items;
-      })
-    );
+        // On first page, learn total count for this type
+        if (offset === 0) {
+          typeTotal = data.total || data.count || 0;
+          grandTotal += typeTotal;
+        }
 
-    await Promise.all(fetchPromises);
+        const items = (data.invoices || []).map(inv => ({ ...inv, _typeLabel: typeLabel, _typeKey: typeKey }));
+        allInvoices = allInvoices.concat(items);
+        grandFetched += items.length;
+
+        console.log('[PDC doSearch] type=' + typeKey + ' page returned ' + items.length + ' total=' + typeTotal + ' grandFetched=' + grandFetched + '/' + grandTotal);
+        updateSearchProgress(grandFetched, grandTotal, typeLabel);
+
+        // Stop if no more pages
+        if (!data.hasMore || items.length === 0) break;
+        offset += SEARCH_PAGE_SIZE;
+      }
+    }
+
+    // Update title to rendering phase
+    var title = document.getElementById('search-progress-title');
+    if (title) title.textContent = 'Rendering ' + allInvoices.length + ' results...';
 
     invoices = allInvoices;
     renderTable(invoices);

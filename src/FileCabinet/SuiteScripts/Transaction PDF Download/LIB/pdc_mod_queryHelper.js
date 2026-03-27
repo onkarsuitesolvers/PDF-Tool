@@ -290,6 +290,59 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
     return codes.map(c => "'" + c + "'").join(',');
   };
 
+  /**
+   * Run a single page of a SuiteQL query (mapped results).
+   *
+   * @param {Object}   queryModule  N/query
+   * @param {string}   sql          Base SQL (WITHOUT OFFSET/FETCH)
+   * @param {any[]}    params       Bind parameters
+   * @param {Function} mapFn        (row) => mapped object
+   * @param {number}   offset       Row offset (0-based)
+   * @param {number}   pageSize     Rows per page
+   * @returns {Object[]}  Mapped rows for this page
+   */
+  const runSuiteQLPage = (queryModule, sql, params, mapFn, offset, pageSize) => {
+    const pagedSql = sql + ` OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`;
+    const rows = queryModule.runSuiteQL({ query: pagedSql, params }).asMappedResults();
+    return rows.map(mapFn);
+  };
+
+  /**
+   * Run a single page of a SuiteQL query (positional/raw results).
+   *
+   * @param {Object}   queryModule  N/query
+   * @param {string}   sql          Base SQL (WITHOUT OFFSET/FETCH)
+   * @param {any[]}    params       Bind parameters
+   * @param {Function} mapFn        (row) => mapped object  — receives iterator row
+   * @param {number}   offset       Row offset (0-based)
+   * @param {number}   pageSize     Rows per page
+   * @returns {Object[]}  Mapped rows for this page
+   */
+  const runSuiteQLPageRaw = (queryModule, sql, params, mapFn, offset, pageSize) => {
+    const pagedSql = sql + ` OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`;
+    const resultSet = queryModule.runSuiteQL({ query: pagedSql, params });
+    const results = [];
+    resultSet.iterator().each((row) => {
+      results.push(mapFn(row));
+      return true;
+    });
+    return results;
+  };
+
+  /**
+   * Count total rows for a query.
+   *
+   * @param {Object}   queryModule  N/query
+   * @param {string}   sql          Base SQL
+   * @param {any[]}    params       Bind parameters
+   * @returns {number}
+   */
+  const runSuiteQLCount = (queryModule, sql, params) => {
+    const countSql = `SELECT COUNT(*) AS cnt FROM (${sql})`;
+    const rows = queryModule.runSuiteQL({ query: countSql, params }).asMappedResults();
+    return rows.length > 0 ? parseInt(rows[0].cnt, 10) : 0;
+  };
+
   return {
     parseIdList,
     pushIdFilter,
@@ -297,6 +350,9 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
     collectPagedResults,
     runSuiteQLAll,
     runSuiteQLAllRaw,
+    runSuiteQLPage,
+    runSuiteQLPageRaw,
+    runSuiteQLCount,
     writeJsonResponse,
     normalizeStatusCode,
     statusInLiteral

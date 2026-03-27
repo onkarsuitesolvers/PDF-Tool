@@ -58,45 +58,50 @@ define(
 
     log.debug({ title: 'PDC invoiceGroups.serve finalQuery', details: 'SQL: ' + sql + ' | Params: ' + JSON.stringify(params) });
 
-    const groups = [];
-    let truncated = false;
+    const mapRawRow = (row) => {
+      const v          = row.value.values;   // positional array
+      const statusCode = (v[6] || '').toString().toUpperCase();
+      const statusLabel = statusCode === 'PAIDFULL' ? 'Paid in Full'
+                        : statusCode === 'PAIDPART' ? 'Partially Paid'
+                        : statusCode === 'OPEN'     ? 'Open'
+                        : statusCode === 'BILLED'   ? 'Billed'
+                        : statusCode;
+      return {
+        id:         v[0],
+        tranId:     v[1] || `GRP-${v[0]}`,
+        customer:   v[2] || 'Unknown',
+        date:       v[3] || '',
+        dueDate:    v[4] || '',
+        amount:     v[5],
+        currency:   '',
+        status:     statusLabel,
+        statusCode: statusCode
+      };
+    };
+
+    const reqPageSize = parseInt(p.pageSize, 10) || 0;
+    const reqOffset   = parseInt(p.offset, 10)   || 0;
 
     // InvoiceGroup uses positional (non-mapped) results
     try {
-      const rawResult = qh.runSuiteQLAllRaw(query, sql, params, (row) => {
-        const v          = row.value.values;   // positional array
-        const statusCode = (v[6] || '').toString().toUpperCase();
-        const statusLabel = statusCode === 'PAIDFULL' ? 'Paid in Full'
-                          : statusCode === 'PAIDPART' ? 'Partially Paid'
-                          : statusCode === 'OPEN'     ? 'Open'
-                          : statusCode === 'BILLED'   ? 'Billed'
-                          : statusCode;
-
-        groups.push({
-          id:         v[0],
-          tranId:     v[1] || `GRP-${v[0]}`,
-          customer:   v[2] || 'Unknown',
-          date:       v[3] || '',
-          dueDate:    v[4] || '',
-          amount:     v[5],
-          currency:   '',
-          status:     statusLabel,
-          statusCode: statusCode
+      if (reqPageSize > 0) {
+        const total = qh.runSuiteQLCount(query, sql, params);
+        const groups = qh.runSuiteQLPageRaw(query, sql, params, mapRawRow, reqOffset, reqPageSize);
+        const hasMore = (reqOffset + groups.length) < total;
+        log.debug({ title: 'PDC invoiceGroups.serve paged', details: 'offset=' + reqOffset + ' page=' + groups.length + ' total=' + total });
+        qh.writeJsonResponse(response, { success: true, count: groups.length, total, hasMore, invoices: groups });
+      } else {
+        const groups = [];
+        const rawResult = qh.runSuiteQLAllRaw(query, sql, params, (row) => {
+          groups.push(mapRawRow(row));
         });
-      });
-      truncated = rawResult.truncated;
-      log.debug({ title: 'PDC invoiceGroups.serve result', details: 'count=' + groups.length + ' truncated=' + truncated });
+        log.debug({ title: 'PDC invoiceGroups.serve result', details: 'count=' + groups.length });
+        qh.writeJsonResponse(response, { success: true, count: groups.length, invoices: groups });
+      }
     } catch (e) {
       log.error({ title: 'PDC invoiceGroups.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });
       throw e;
     }
-
-    qh.writeJsonResponse(response, {
-      success:  true,
-      count:    groups.length,
-      truncated,
-      invoices: groups          // kept as "invoices" for client-side compatibility
-    });
   };
 
   return { serve };
