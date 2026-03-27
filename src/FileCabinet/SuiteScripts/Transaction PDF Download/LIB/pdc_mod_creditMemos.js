@@ -85,7 +85,7 @@ define(
       }
     } catch (e) {
       log.error({ title: 'PDC creditMemos.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });
-      throw e;
+      qh.writeJsonResponse(response, { success: false, error: e.message || 'Credit Memo query failed' });
     }
   };
 
