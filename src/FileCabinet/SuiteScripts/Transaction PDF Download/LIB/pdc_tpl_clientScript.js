@@ -189,12 +189,67 @@ function updateStatusOptions() {
 /* ─────────────────────────────────────────
    UNIFIED SEARCH DISPATCHER
 ───────────────────────────────────────── */
+/* ── Search progress overlay helpers ── */
+function showSearchProgress(totalTypes) {
+  // Remove any previous overlay
+  hideSearchProgress();
+  var overlay = document.createElement('div');
+  overlay.id = 'search-progress-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:99999;';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:12px;padding:2rem 2.5rem;box-shadow:0 8px 32px rgba(0,0,0,0.18);text-align:center;min-width:340px;';
+  // Spinner
+  var spinner = document.createElement('div');
+  spinner.style.cssText = 'width:48px;height:48px;border:4px solid #e0e0e0;border-top:4px solid #4d5f79;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 1rem auto;';
+  box.appendChild(spinner);
+  // Title
+  var title = document.createElement('div');
+  title.id = 'search-progress-title';
+  title.style.cssText = 'font-size:1.1rem;font-weight:600;color:#4d5f79;margin-bottom:0.75rem;';
+  title.textContent = 'Extracting search results...';
+  box.appendChild(title);
+  // Progress bar container
+  var barOuter = document.createElement('div');
+  barOuter.style.cssText = 'width:100%;height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden;margin-bottom:0.5rem;';
+  var barInner = document.createElement('div');
+  barInner.id = 'search-progress-bar';
+  barInner.style.cssText = 'width:0%;height:100%;background:linear-gradient(90deg,#4d5f79,#6b8cae);border-radius:4px;transition:width 0.3s ease;';
+  barOuter.appendChild(barInner);
+  box.appendChild(barOuter);
+  // Status text
+  var status = document.createElement('div');
+  status.id = 'search-progress-status';
+  status.style.cssText = 'font-size:0.85rem;color:#666;';
+  status.textContent = 'Fetching 0 of ' + totalTypes + ' search types...';
+  box.appendChild(status);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
+
+function updateSearchProgress(completed, totalTypes, totalRows) {
+  var bar = document.getElementById('search-progress-bar');
+  var status = document.getElementById('search-progress-status');
+  var title = document.getElementById('search-progress-title');
+  if (bar) bar.style.width = Math.round((completed / totalTypes) * 100) + '%';
+  if (status) status.textContent = 'Fetched ' + completed + ' of ' + totalTypes + ' search types (' + totalRows + ' records so far)';
+  if (title && completed === totalTypes) title.textContent = 'Rendering results...';
+}
+
+function hideSearchProgress() {
+  var el = document.getElementById('search-progress-overlay');
+  if (el) el.remove();
+}
+
 async function doSearch() {
   const cfg = PAGE_CONFIG[currentPage];
   const btn = document.getElementById('btn-search');
   btn.disabled = true;
   const origLabel = cfg.searchLabel;
-  document.getElementById('btn-search-label').textContent = 'Searching…';
+  document.getElementById('btn-search-label').textContent = 'Searching...';
+
+  // Remove any previous truncation warning
+  var truncWarn = document.getElementById('truncation-warning');
+  if (truncWarn) truncWarn.remove();
 
   // Determine which transaction types to search
   const selTypes = msGetValues('trantype');
@@ -215,9 +270,8 @@ async function doSearch() {
       return relevant.join(',');
     }
 
-    // Build fetch promises in parallel for all applicable types
-    const fetchPromises = [];
-    const fetchTypeKeys = [];
+    // Build fetch promises for all applicable types
+    const fetchEntries = [];
 
     for (const typeKey of typesToSearch) {
       const typeCfg = PAGE_CONFIG[typeKey];
@@ -238,45 +292,37 @@ async function doSearch() {
       });
 
       console.log('[PDC doSearch] type=' + typeKey + ' statusForType=' + JSON.stringify(statusForType) + ' fullParams=' + params.toString());
-      fetchPromises.push(fetch(BASE_URL + '&' + params.toString()));
-      fetchTypeKeys.push(typeKey);
+      fetchEntries.push({ typeKey, typeCfg, url: BASE_URL + '&' + params.toString() });
     }
 
-    // Await all fetches in parallel
-    const responses = await Promise.all(fetchPromises);
+    const totalTypes = fetchEntries.length;
+    showSearchProgress(totalTypes);
+
     let allInvoices = [];
-    let anyTruncated = false;
+    let completed = 0;
 
-    for (let i = 0; i < responses.length; i++) {
-      const resp = responses[i];
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
-      console.log('[PDC doSearch] type=' + fetchTypeKeys[i] + ' response count=' + (data.count || 0) + ' success=' + data.success + ' truncated=' + !!data.truncated);
-      if (!data.success) throw new Error(data.error || 'Unknown error');
-      if (data.truncated) anyTruncated = true;
+    // Fetch all types in parallel, update progress as each completes
+    const fetchPromises = fetchEntries.map(entry =>
+      fetch(entry.url).then(async (resp) => {
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        console.log('[PDC doSearch] type=' + entry.typeKey + ' response count=' + (data.count || 0) + ' success=' + data.success);
+        if (!data.success) throw new Error(data.error || 'Unknown error');
 
-      const typeKey  = fetchTypeKeys[i];
-      const typeCfg  = PAGE_CONFIG[typeKey];
-      const typeLabel = typeCfg.typeLabel || typeKey;
-      const items = (data.invoices || []).map(inv => ({ ...inv, _typeLabel: typeLabel, _typeKey: typeKey }));
-      allInvoices = allInvoices.concat(items);
-    }
+        const typeLabel = entry.typeCfg.typeLabel || entry.typeKey;
+        const items = (data.invoices || []).map(inv => ({ ...inv, _typeLabel: typeLabel, _typeKey: entry.typeKey }));
+        allInvoices = allInvoices.concat(items);
+        completed++;
+        updateSearchProgress(completed, totalTypes, allInvoices.length);
+        return items;
+      })
+    );
+
+    await Promise.all(fetchPromises);
 
     invoices = allInvoices;
     renderTable(invoices);
     setStats(invoices.length, 0, 0);
-
-    // Show truncation warning if any result set was capped
-    var truncWarn = document.getElementById('truncation-warning');
-    if (truncWarn) truncWarn.remove();
-    if (anyTruncated) {
-      var warn = document.createElement('div');
-      warn.id = 'truncation-warning';
-      warn.style.cssText = 'background:#fef3cd;color:#856404;border:1px solid #ffc107;border-radius:6px;padding:0.6rem 1rem;margin-bottom:0.75rem;font-size:0.85rem;';
-      warn.textContent = 'Results were limited to prevent timeout. Please narrow your search with filters or a shorter date range for complete results.';
-      var tc = document.getElementById('table-container');
-      if (tc) tc.parentNode.insertBefore(warn, tc);
-    }
 
     if (invoices.length === 0) {
       document.getElementById('table-container').classList.remove('show');
@@ -292,6 +338,7 @@ async function doSearch() {
     document.getElementById('table-container').classList.add('show');
     document.getElementById('empty-state').classList.remove('show');
   } finally {
+    hideSearchProgress();
     btn.disabled = false;
     document.getElementById('btn-search-label').textContent = origLabel;
   }
