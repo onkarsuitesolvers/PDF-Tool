@@ -5,6 +5,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  *  PDC — Invoice List (action=getInvoices)
  *  SuiteQL search for invoices with date / customer / subsidiary / status filters.
+ *  Uses ROWNUM-based server-side pagination — returns all results in one response.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 define(
@@ -27,16 +28,13 @@ define(
     });
     conditions.unshift("t.recordtype = 'invoice'", "t.voided = 'F'");
 
-    // Status filter (comma-separated status codes, e.g. CustInvc:A,CustInvc:B)
-    // Client pre-filters codes per type, so we use them directly without prefix checks
+    // Status filter
     if (p.status) {
       const codes = p.status.split(',').map(s => qh.normalizeStatusCode(decodeURIComponent(s.trim()))).filter(Boolean);
       if (codes.length) {
         conditions.push("t.status IN (" + qh.statusInLiteral(codes) + ")");
       }
     }
-
-    log.debug({ title: 'PDC invoices.serve SQL', details: 'conditions=' + JSON.stringify(conditions) + ' | params=' + JSON.stringify(params) });
 
     const sql = `
       SELECT
@@ -54,7 +52,7 @@ define(
       ORDER BY t.trandate DESC, t.id DESC
     `;
 
-    log.debug({ title: 'PDC invoices.serve finalQuery', details: 'SQL: ' + sql + ' | Params: ' + JSON.stringify(params) });
+    log.debug({ title: 'PDC invoices.serve finalQuery', details: 'SQL: ' + sql });
 
     const mapRow = (row) => ({
       id:         row.id,
@@ -68,27 +66,24 @@ define(
       statusCode: row.statuscode  || ''
     });
 
-    const reqPageSize = parseInt(p.pageSize, 10) || 0;
-    const reqOffset   = parseInt(p.offset, 10)   || 0;
+    const reqRowBegin = parseInt(p.rowBegin, 10) || 0;
+    const reqRowEnd   = parseInt(p.rowEnd, 10)   || 0;
 
     try {
-      if (reqPageSize > 0) {
-        // Paged mode: return one page; only compute total on first page (offset 0)
-        const invoices = qh.runSuiteQLPage(query, sql, params, mapRow, reqOffset, reqPageSize);
-        let total;
-        if (reqOffset === 0) {
-          total = qh.runSuiteQLCount(query, sql, params);
+      if (reqRowBegin > 0 && reqRowEnd > 0) {
+        // Paged mode: return one ROWNUM page; total count on first page only
+        const invoices = qh.runSuiteQLPage(query, sql, params, mapRow, reqRowBegin, reqRowEnd);
+        const result = { success: true, count: invoices.length, invoices };
+        if (reqRowBegin === 1) {
+          result.totalCount = qh.runSuiteQLCount(query, sql, params);
         }
-        const hasMore = invoices.length >= reqPageSize;
-        log.debug({ title: 'PDC invoices.serve paged', details: 'offset=' + reqOffset + ' page=' + invoices.length + (total != null ? ' total=' + total : '') });
-        const result = { success: true, count: invoices.length, hasMore, invoices };
-        if (total != null) result.total = total;
+        log.debug({ title: 'PDC invoices.serve paged', details: 'rows ' + reqRowBegin + '-' + reqRowEnd + ' returned ' + invoices.length + (result.totalCount != null ? ' total=' + result.totalCount : '') });
         qh.writeJsonResponse(response, result);
       } else {
-        // Full mode: return all results
-        const result = qh.runSuiteQLAll(query, sql, params, mapRow);
-        log.debug({ title: 'PDC invoices.serve result', details: 'count=' + result.results.length });
-        qh.writeJsonResponse(response, { success: true, count: result.results.length, invoices: result.results });
+        // Full mode: return all results using server-side ROWNUM loop
+        const invoices = qh.runSuiteQLPaginated(query, sql, params, mapRow);
+        log.debug({ title: 'PDC invoices.serve result', details: 'count=' + invoices.length });
+        qh.writeJsonResponse(response, { success: true, count: invoices.length, invoices });
       }
     } catch (e) {
       log.error({ title: 'PDC invoices.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });

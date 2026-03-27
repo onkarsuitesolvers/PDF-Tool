@@ -5,6 +5,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  *  PDC — Credit Memo List (action=getCreditMemos)
  *  SuiteQL search for credit memos with date / customer / subsidiary / status filters.
+ *  Uses ROWNUM-based server-side pagination — returns all results in one response.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 define(
@@ -27,16 +28,13 @@ define(
     });
     conditions.unshift("t.recordtype = 'creditmemo'", "t.voided = 'F'");
 
-    // Status filter (comma-separated status codes, e.g. CustCred:A,CustCred:B)
-    // Client pre-filters codes per type, so we use them directly without prefix checks
+    // Status filter
     if (p.status) {
       const codes = p.status.split(',').map(s => qh.normalizeStatusCode(decodeURIComponent(s.trim()))).filter(Boolean);
       if (codes.length) {
         conditions.push("t.status IN (" + qh.statusInLiteral(codes) + ")");
       }
     }
-
-    log.debug({ title: 'PDC creditMemos.serve SQL', details: 'conditions=' + JSON.stringify(conditions) + ' | params=' + JSON.stringify(params) });
 
     const sql = `
       SELECT
@@ -54,7 +52,7 @@ define(
       ORDER BY t.trandate DESC, t.id DESC
     `;
 
-    log.debug({ title: 'PDC creditMemos.serve finalQuery', details: 'SQL: ' + sql + ' | Params: ' + JSON.stringify(params) });
+    log.debug({ title: 'PDC creditMemos.serve finalQuery', details: 'SQL: ' + sql });
 
     const mapRow = (row) => ({
       id:         row.id,
@@ -68,25 +66,22 @@ define(
       statusCode: row.statuscode  || ''
     });
 
-    const reqPageSize = parseInt(p.pageSize, 10) || 0;
-    const reqOffset   = parseInt(p.offset, 10)   || 0;
+    const reqRowBegin = parseInt(p.rowBegin, 10) || 0;
+    const reqRowEnd   = parseInt(p.rowEnd, 10)   || 0;
 
     try {
-      if (reqPageSize > 0) {
-        const memos = qh.runSuiteQLPage(query, sql, params, mapRow, reqOffset, reqPageSize);
-        let total;
-        if (reqOffset === 0) {
-          total = qh.runSuiteQLCount(query, sql, params);
+      if (reqRowBegin > 0 && reqRowEnd > 0) {
+        const memos = qh.runSuiteQLPage(query, sql, params, mapRow, reqRowBegin, reqRowEnd);
+        const result = { success: true, count: memos.length, invoices: memos };
+        if (reqRowBegin === 1) {
+          result.totalCount = qh.runSuiteQLCount(query, sql, params);
         }
-        const hasMore = memos.length >= reqPageSize;
-        log.debug({ title: 'PDC creditMemos.serve paged', details: 'offset=' + reqOffset + ' page=' + memos.length + (total != null ? ' total=' + total : '') });
-        const result = { success: true, count: memos.length, hasMore, invoices: memos };
-        if (total != null) result.total = total;
+        log.debug({ title: 'PDC creditMemos.serve paged', details: 'rows ' + reqRowBegin + '-' + reqRowEnd + ' returned ' + memos.length + (result.totalCount != null ? ' total=' + result.totalCount : '') });
         qh.writeJsonResponse(response, result);
       } else {
-        const result = qh.runSuiteQLAll(query, sql, params, mapRow);
-        log.debug({ title: 'PDC creditMemos.serve result', details: 'count=' + result.results.length });
-        qh.writeJsonResponse(response, { success: true, count: result.results.length, invoices: result.results });
+        const memos = qh.runSuiteQLPaginated(query, sql, params, mapRow);
+        log.debug({ title: 'PDC creditMemos.serve result', details: 'count=' + memos.length });
+        qh.writeJsonResponse(response, { success: true, count: memos.length, invoices: memos });
       }
     } catch (e) {
       log.error({ title: 'PDC creditMemos.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });

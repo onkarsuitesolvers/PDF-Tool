@@ -3,16 +3,24 @@
  * @NModuleScope SameAccount
  *
  * ─────────────────────────────────────────────────────────────────────────────
- *  PDC — Shared Query Filter Builder
- *  Centralises the date / customer / subsidiary filter logic used by
+ *  PDC — Shared Query & Pagination Helper
+ *
+ *  Centralises filter building and ROWNUM-based pagination used by
  *  serveInvoiceList, serveCreditMemoList, and serveInvoiceGroupList.
+ *
+ *  Pagination strategy (based on Tim Dietrich's SuiteQL Query Tool):
+ *    SELECT * FROM (
+ *      SELECT ROWNUM AS ROWNUMBER, * FROM ( <your query> )
+ *    ) WHERE ( ROWNUMBER BETWEEN :begin AND :end )
+ *
+ *  This approach is reliable, governance-efficient, and avoids the
+ *  infinite-loop pitfalls of OFFSET/FETCH + hasMore heuristics.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 define(['N/log', 'N/runtime'], (log, runtime) => {
 
-  const PAGED_SIZE    = 1000;   // pageSize for runSuiteQLPaged
-  const FALLBACK_PAGE = 1000;   // rows per runSuiteQL call (fallback)
-  const GOV_THRESHOLD = 500;    // stop pagination when remaining units drop below this
+  const ROWNUM_PAGE   = 5000;   // rows per ROWNUM page (matches SuiteQL Query Tool)
+  const GOV_THRESHOLD = 500;    // stop when remaining governance units drop below this
 
   /**
    * Parse a comma-separated parameter into an array of positive integers.
@@ -32,7 +40,6 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
    * @param {number[]} ids
    */
   const pushIdFilter = (conditions, params, column, ids) => {
-    // Inline numeric IDs as literals — already validated as integers by parseIdList
     if (ids.length === 1) {
       conditions.push(`${column} = ${ids[0]}`);
     } else if (ids.length > 1) {
@@ -60,8 +67,6 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
     const conditions = [];
     const params     = [];
 
-    // Date range — inlined as literals because SuiteQL bind params
-    // with TO_DATE can return 0 rows even when the same literal query succeeds
     if (p.dateFrom) {
       const df = validateDateLiteral(p.dateFrom);
       conditions.push(`${dateCol} >= TO_DATE('${df}', 'YYYY-MM-DD')`);
@@ -71,17 +76,14 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
       conditions.push(`${dateCol} <= TO_DATE('${dt}', 'YYYY-MM-DD')`);
     }
 
-    // Tran ID filter (exact or LIKE match) — inlined as literal
     if (p.tranId && p.tranId.trim()) {
       const tid = p.tranId.trim().replace(/'/g, "''");
       conditions.push(`${tranIdCol} LIKE '%${tid}%'`);
     }
 
-    // Customer
     const custIds = parseIdList(p.customer);
     if (custIds.length) pushIdFilter(conditions, params, customerCol, custIds);
 
-    // Subsidiary (optional — InvoiceGroup doesn't support it)
     if (subsidiaryCol) {
       const subIds = parseIdList(p.subsidiary);
       if (subIds.length) pushIdFilter(conditions, params, subsidiaryCol, subIds);
@@ -93,153 +95,81 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
   };
 
   /**
-   * Iterate all pages of a SuiteQL paged result set and collect mapped rows.
+   * Run a SuiteQL query and collect ALL mapped results using ROWNUM pagination.
    *
-   * @param {Object} pagedResult  from query.runSuiteQLPaged()
-   * @param {Function} mapFn      (row: Object) => mapped object
-   * @returns {Object[]}
-   */
-  const collectPagedResults = (pagedResult, mapFn) => {
-    const results = [];
-    pagedResult.iterator().each((page) => {
-      page.value.data.asMappedResults().forEach((row) => {
-        results.push(mapFn(row));
-      });
-      return true;
-    });
-    return results;
-  };
-
-  /**
-   * Run a SuiteQL query and collect all mapped results.
+   * Based on Tim Dietrich's SuiteQL Query Tool pattern:
+   *   SELECT * FROM ( SELECT ROWNUM AS ROWNUMBER, * FROM (sql) )
+   *   WHERE ( ROWNUMBER BETWEEN rowBegin AND rowEnd )
    *
-   * Strategy: try runSuiteQLPaged first (10 governance units total for all
-   * pages). If it returns 0 rows — a known NetSuite bug with certain query
-   * patterns — fall back to manual OFFSET/FETCH pagination with runSuiteQL.
+   * Loops server-side until all rows are fetched.  Terminates when a page
+   * returns fewer rows than the page size — simple and foolproof.
    *
    * @param {Object}   queryModule  The N/query module reference
-   * @param {string}   sql          Base SQL (WITHOUT OFFSET/FETCH — they are appended by fallback)
+   * @param {string}   sql          Complete SQL (with ORDER BY, no OFFSET/FETCH)
    * @param {any[]}    params       Bind parameters
-   * @param {Function} mapFn        (row: Object) => mapped object  (receives asMappedResults rows)
-   * @param {number}   [pageSize]   Rows per page
-   * @returns {{ results: Object[], truncated: boolean }}
+   * @param {Function} mapFn        (row: Object) => mapped object  (receives asMappedResults row)
+   * @returns {Object[]}  All mapped records
    */
-  const runSuiteQLAll = (queryModule, sql, params, mapFn, pageSize) => {
-    // ── Primary: runSuiteQLPaged (governance-efficient) ──
-    try {
-      const results = [];
-      const pagedResult = queryModule.runSuiteQLPaged({ query: sql, params: params, pageSize: pageSize || PAGED_SIZE });
+  const runSuiteQLPaginated = (queryModule, sql, params, mapFn) => {
+    const records = [];
+    let rowBegin = 1;
+    let moreRecords = true;
 
-      pagedResult.iterator().each((page) => {
-        page.value.data.asMappedResults().forEach((row) => {
-          results.push(mapFn(row));
-        });
-        return true;
-      });
-
-      if (results.length > 0) {
-        log.debug({ title: 'PDC runSuiteQLAll', details: 'Paged query returned ' + results.length + ' rows' });
-        return { results, truncated: false };
-      }
-      log.debug({ title: 'PDC runSuiteQLAll', details: 'runSuiteQLPaged returned 0 rows — falling back to manual pagination' });
-    } catch (e) {
-      log.debug({ title: 'PDC runSuiteQLAll', details: 'runSuiteQLPaged failed (' + e.message + ') — falling back to manual pagination' });
-    }
-
-    // ── Fallback: manual OFFSET/FETCH with runSuiteQL ──
-    const PAGE = pageSize || FALLBACK_PAGE;
-    const results = [];
-    let offset = 0;
-    let truncated = false;
-
-    while (true) {
+    do {
       const remaining = runtime.getCurrentScript().getRemainingUsage();
       if (remaining < GOV_THRESHOLD) {
-        log.audit({ title: 'PDC runSuiteQLAll', details: 'Stopping — governance remaining: ' + remaining + ', rows so far: ' + results.length });
-        truncated = true;
+        log.audit({ title: 'PDC runSuiteQLPaginated', details: 'Stopping — governance remaining: ' + remaining + ', rows so far: ' + records.length });
         break;
       }
 
-      const pagedSql = sql + ` OFFSET ${offset} ROWS FETCH NEXT ${PAGE} ROWS ONLY`;
-      const resultSet = queryModule.runSuiteQL({ query: pagedSql, params: params });
-      const rows = resultSet.asMappedResults();
+      const rowEnd = rowBegin + ROWNUM_PAGE - 1;
+      const paginatedSQL = 'SELECT * FROM ( SELECT ROWNUM AS ROWNUMBER, * FROM (' + sql + ') ) WHERE ( ROWNUMBER BETWEEN ' + rowBegin + ' AND ' + rowEnd + ')';
 
-      rows.forEach((row) => results.push(mapFn(row)));
+      const queryResults = queryModule.runSuiteQL({ query: paginatedSQL, params: params }).asMappedResults();
+      queryResults.forEach(row => records.push(mapFn(row)));
 
-      if (rows.length < PAGE) break;
-      offset += PAGE;
-    }
+      log.debug({ title: 'PDC runSuiteQLPaginated', details: 'rows ' + rowBegin + '-' + rowEnd + ' returned ' + queryResults.length + ', total so far: ' + records.length });
 
-    return { results, truncated };
+      if (queryResults.length < ROWNUM_PAGE) { moreRecords = false; }
+      rowBegin += ROWNUM_PAGE;
+    } while (moreRecords);
+
+    return records;
   };
 
   /**
-   * Run a SuiteQL query with positional (non-mapped) row iteration.
+   * Run a single page of a SuiteQL query using ROWNUM pagination.
    *
-   * Same paged-first strategy as runSuiteQLAll: tries runSuiteQLPaged,
-   * falls back to manual OFFSET/FETCH if paged returns 0 rows.
+   * Called by the server modules when the client sends rowBegin/rowEnd
+   * so results can be streamed page by page with live progress.
    *
    * @param {Object}   queryModule  The N/query module reference
-   * @param {string}   sql          Base SQL (WITHOUT OFFSET/FETCH)
+   * @param {string}   sql          Complete SQL (with ORDER BY)
    * @param {any[]}    params       Bind parameters
-   * @param {Function} rowFn        (row) => void — receives each row from iterator
-   * @param {number}   [pageSize]
-   * @returns {{ truncated: boolean }}
+   * @param {Function} mapFn        (row: Object) => mapped object
+   * @param {number}   rowBegin     1-based start row
+   * @param {number}   rowEnd       1-based end row
+   * @returns {Object[]}  Mapped records for this page
    */
-  const runSuiteQLAllRaw = (queryModule, sql, params, rowFn, pageSize) => {
-    // ── Primary: runSuiteQLPaged ──
-    try {
-      let totalCount = 0;
-      const pagedResult = queryModule.runSuiteQLPaged({ query: sql, params: params, pageSize: pageSize || PAGED_SIZE });
+  const runSuiteQLPage = (queryModule, sql, params, mapFn, rowBegin, rowEnd) => {
+    const paginatedSQL = 'SELECT * FROM ( SELECT ROWNUM AS ROWNUMBER, * FROM (' + sql + ') ) WHERE ( ROWNUMBER BETWEEN ' + rowBegin + ' AND ' + rowEnd + ')';
+    const queryResults = queryModule.runSuiteQL({ query: paginatedSQL, params: params }).asMappedResults();
+    log.debug({ title: 'PDC runSuiteQLPage', details: 'rows ' + rowBegin + '-' + rowEnd + ' returned ' + queryResults.length });
+    return queryResults.map(mapFn);
+  };
 
-      pagedResult.iterator().each((page) => {
-        page.value.data.iterator().each((row) => {
-          rowFn(row);
-          totalCount++;
-          return true;
-        });
-        return true;
-      });
-
-      if (totalCount > 0) {
-        log.debug({ title: 'PDC runSuiteQLAllRaw', details: 'Paged query returned ' + totalCount + ' rows' });
-        return { truncated: false };
-      }
-      log.debug({ title: 'PDC runSuiteQLAllRaw', details: 'runSuiteQLPaged returned 0 rows — falling back' });
-    } catch (e) {
-      log.debug({ title: 'PDC runSuiteQLAllRaw', details: 'runSuiteQLPaged failed (' + e.message + ') — falling back' });
-    }
-
-    // ── Fallback: manual OFFSET/FETCH ──
-    const PAGE = pageSize || FALLBACK_PAGE;
-    let offset = 0;
-    let totalCount = 0;
-    let truncated = false;
-
-    while (true) {
-      const remaining = runtime.getCurrentScript().getRemainingUsage();
-      if (remaining < GOV_THRESHOLD) {
-        log.audit({ title: 'PDC runSuiteQLAllRaw', details: 'Stopping — governance remaining: ' + remaining + ', rows so far: ' + totalCount });
-        truncated = true;
-        break;
-      }
-
-      const pagedSql = sql + ` OFFSET ${offset} ROWS FETCH NEXT ${PAGE} ROWS ONLY`;
-      const resultSet = queryModule.runSuiteQL({ query: pagedSql, params: params });
-
-      let count = 0;
-      resultSet.iterator().each((row) => {
-        rowFn(row);
-        count++;
-        return true;
-      });
-
-      totalCount += count;
-      if (count < PAGE) break;
-      offset += PAGE;
-    }
-
-    return { truncated };
+  /**
+   * Count total rows for a query using ROWNUM wrapper.
+   *
+   * @param {Object}   queryModule  The N/query module reference
+   * @param {string}   sql          Base SQL
+   * @param {any[]}    params       Bind parameters
+   * @returns {number}
+   */
+  const runSuiteQLCount = (queryModule, sql, params) => {
+    const countSQL = 'SELECT COUNT(*) AS cnt FROM (' + sql + ')';
+    const rows = queryModule.runSuiteQL({ query: countSQL, params: params }).asMappedResults();
+    return rows.length > 0 ? parseInt(rows[0].cnt, 10) : 0;
   };
 
   /**
@@ -252,7 +182,6 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
 
   /**
    * Validate and return a date string in YYYY-MM-DD format.
-   * Throws if the value contains unexpected characters (prevents SQL injection).
    * @param {string} val  e.g. '2025-12-26'
    * @returns {string}
    */
@@ -263,8 +192,7 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
 
   /**
    * Normalize a status code by re-inserting the colon that NetSuite strips
-   * from URL parameters.  e.g. 'CustInvcA' → 'CustInvc:A', 'CustCredB' → 'CustCred:B'.
-   * Codes that already contain the colon pass through unchanged.
+   * from URL parameters.  e.g. 'CustInvcA' → 'CustInvc:A'.
    */
   const normalizeStatusCode = (code) =>
     code.replace(/^(CustInvc|CustCred)([A-Z])$/, '$1:$2');
@@ -272,15 +200,8 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
   /**
    * Build a safe SQL IN-list literal for status codes.
    *
-   * SuiteQL's transaction.status field does not work correctly with
-   * parameterised bind values (? placeholders) — queries return 0 rows even
-   * though the same SQL with literal strings succeeds.  This helper inlines
-   * the codes as quoted literals after strict validation so the values are
-   * safe to embed directly in SQL.
-   *
    * @param {string[]} codes  Status codes, e.g. ['CustInvc:A','CustInvc:B']
    * @returns {string}  e.g. "'CustInvc:A','CustInvc:B'"
-   * @throws {Error} if any code contains characters outside [A-Za-z0-9:_]
    */
   const statusInLiteral = (codes) => {
     const safe = /^[A-Za-z0-9:_]+$/;
@@ -290,68 +211,12 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
     return codes.map(c => "'" + c + "'").join(',');
   };
 
-  /**
-   * Run a single page of a SuiteQL query (mapped results).
-   *
-   * @param {Object}   queryModule  N/query
-   * @param {string}   sql          Base SQL (WITHOUT OFFSET/FETCH)
-   * @param {any[]}    params       Bind parameters
-   * @param {Function} mapFn        (row) => mapped object
-   * @param {number}   offset       Row offset (0-based)
-   * @param {number}   pageSize     Rows per page
-   * @returns {Object[]}  Mapped rows for this page
-   */
-  const runSuiteQLPage = (queryModule, sql, params, mapFn, offset, pageSize) => {
-    const pagedSql = sql + ` OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`;
-    const rows = queryModule.runSuiteQL({ query: pagedSql, params }).asMappedResults();
-    return rows.map(mapFn);
-  };
-
-  /**
-   * Run a single page of a SuiteQL query (positional/raw results).
-   *
-   * @param {Object}   queryModule  N/query
-   * @param {string}   sql          Base SQL (WITHOUT OFFSET/FETCH)
-   * @param {any[]}    params       Bind parameters
-   * @param {Function} mapFn        (row) => mapped object  — receives iterator row
-   * @param {number}   offset       Row offset (0-based)
-   * @param {number}   pageSize     Rows per page
-   * @returns {Object[]}  Mapped rows for this page
-   */
-  const runSuiteQLPageRaw = (queryModule, sql, params, mapFn, offset, pageSize) => {
-    const pagedSql = sql + ` OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`;
-    const resultSet = queryModule.runSuiteQL({ query: pagedSql, params });
-    const results = [];
-    resultSet.iterator().each((row) => {
-      results.push(mapFn(row));
-      return true;
-    });
-    return results;
-  };
-
-  /**
-   * Count total rows for a query.
-   *
-   * @param {Object}   queryModule  N/query
-   * @param {string}   sql          Base SQL
-   * @param {any[]}    params       Bind parameters
-   * @returns {number}
-   */
-  const runSuiteQLCount = (queryModule, sql, params) => {
-    const countSql = `SELECT COUNT(*) AS cnt FROM (${sql})`;
-    const rows = queryModule.runSuiteQL({ query: countSql, params }).asMappedResults();
-    return rows.length > 0 ? parseInt(rows[0].cnt, 10) : 0;
-  };
-
   return {
     parseIdList,
     pushIdFilter,
     buildCommonFilters,
-    collectPagedResults,
-    runSuiteQLAll,
-    runSuiteQLAllRaw,
+    runSuiteQLPaginated,
     runSuiteQLPage,
-    runSuiteQLPageRaw,
     runSuiteQLCount,
     writeJsonResponse,
     normalizeStatusCode,

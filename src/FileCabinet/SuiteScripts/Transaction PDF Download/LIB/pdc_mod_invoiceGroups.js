@@ -5,6 +5,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  *  PDC — Invoice Group List (action=getInvoiceGroups)
  *  SuiteQL search using the InvoiceGroup entity with BUILTIN_RESULT typed columns.
+ *  Uses ROWNUM-based server-side pagination — returns all results in one response.
  *  Note: InvoiceGroup does NOT expose subsidiary for filtering.
  * ─────────────────────────────────────────────────────────────────────────────
  */
@@ -24,11 +25,11 @@ define(
     const { conditions, params } = qh.buildCommonFilters(p, {
       dateCol:       'InvoiceGroup.trandate',
       customerCol:   'InvoiceGroup.customer',
-      subsidiaryCol: null,   // InvoiceGroup has no subsidiary column
+      subsidiaryCol: null,
       tranIdCol:     'InvoiceGroup.invoicegroupnumber'
     });
-    // Status filter (comma-separated codes, e.g. OPEN,PAIDPART,PAIDFULL)
-    // Client pre-filters codes per type, so we use them directly without prefix checks
+
+    // Status filter
     if (p.status) {
       const codes = p.status.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean);
       if (codes.length) {
@@ -38,10 +39,6 @@ define(
 
     if (conditions.length === 0) conditions.push('1=1');
 
-    log.debug({ title: 'PDC invoiceGroups.serve SQL', details: 'conditions=' + JSON.stringify(conditions) + ' | params=' + JSON.stringify(params) });
-
-    // Positional columns: 0=id, 1=invoicegroupnumber, 2=customername,
-    //                      3=trandate, 4=duedate, 5=amountdue, 6=statuscode
     const sql = `
       SELECT
         BUILTIN_RESULT.TYPE_INTEGER(InvoiceGroup.id)                                                       AS id,
@@ -56,50 +53,42 @@ define(
       ORDER BY InvoiceGroup.trandate DESC, InvoiceGroup.id DESC
     `;
 
-    log.debug({ title: 'PDC invoiceGroups.serve finalQuery', details: 'SQL: ' + sql + ' | Params: ' + JSON.stringify(params) });
+    log.debug({ title: 'PDC invoiceGroups.serve finalQuery', details: 'SQL: ' + sql });
 
-    const mapRawRow = (row) => {
-      const v          = row.value.values;   // positional array
-      const statusCode = (v[6] || '').toString().toUpperCase();
+    const mapRow = (row) => {
+      const statusCode = (row.statuscode || '').toString().toUpperCase();
       const statusLabel = statusCode === 'PAIDFULL' ? 'Paid in Full'
                         : statusCode === 'PAIDPART' ? 'Partially Paid'
                         : statusCode === 'OPEN'     ? 'Open'
                         : statusCode === 'BILLED'   ? 'Billed'
                         : statusCode;
       return {
-        id:         v[0],
-        tranId:     v[1] || `GRP-${v[0]}`,
-        customer:   v[2] || 'Unknown',
-        date:       v[3] || '',
-        dueDate:    v[4] || '',
-        amount:     v[5],
+        id:         row.id,
+        tranId:     row.invoicegroupnumber || `GRP-${row.id}`,
+        customer:   row.customername || 'Unknown',
+        date:       row.trandate || '',
+        dueDate:    row.duedate || '',
+        amount:     row.amountdue,
         currency:   '',
         status:     statusLabel,
         statusCode: statusCode
       };
     };
 
-    const reqPageSize = parseInt(p.pageSize, 10) || 0;
-    const reqOffset   = parseInt(p.offset, 10)   || 0;
+    const reqRowBegin = parseInt(p.rowBegin, 10) || 0;
+    const reqRowEnd   = parseInt(p.rowEnd, 10)   || 0;
 
-    // InvoiceGroup uses positional (non-mapped) results
     try {
-      if (reqPageSize > 0) {
-        const groups = qh.runSuiteQLPageRaw(query, sql, params, mapRawRow, reqOffset, reqPageSize);
-        let total;
-        if (reqOffset === 0) {
-          total = qh.runSuiteQLCount(query, sql, params);
+      if (reqRowBegin > 0 && reqRowEnd > 0) {
+        const groups = qh.runSuiteQLPage(query, sql, params, mapRow, reqRowBegin, reqRowEnd);
+        const result = { success: true, count: groups.length, invoices: groups };
+        if (reqRowBegin === 1) {
+          result.totalCount = qh.runSuiteQLCount(query, sql, params);
         }
-        const hasMore = groups.length >= reqPageSize;
-        log.debug({ title: 'PDC invoiceGroups.serve paged', details: 'offset=' + reqOffset + ' page=' + groups.length + (total != null ? ' total=' + total : '') });
-        const result = { success: true, count: groups.length, total, hasMore, invoices: groups };
-        if (total != null) result.total = total;
+        log.debug({ title: 'PDC invoiceGroups.serve paged', details: 'rows ' + reqRowBegin + '-' + reqRowEnd + ' returned ' + groups.length + (result.totalCount != null ? ' total=' + result.totalCount : '') });
         qh.writeJsonResponse(response, result);
       } else {
-        const groups = [];
-        const rawResult = qh.runSuiteQLAllRaw(query, sql, params, (row) => {
-          groups.push(mapRawRow(row));
-        });
+        const groups = qh.runSuiteQLPaginated(query, sql, params, mapRow);
         log.debug({ title: 'PDC invoiceGroups.serve result', details: 'count=' + groups.length });
         qh.writeJsonResponse(response, { success: true, count: groups.length, invoices: groups });
       }
