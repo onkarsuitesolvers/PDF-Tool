@@ -138,6 +138,41 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
   };
 
   /**
+   * Run a single page of a SuiteQL query using ROWNUM pagination.
+   *
+   * Called by the server modules when the client sends rowBegin/rowEnd
+   * so results can be streamed page by page with live progress.
+   *
+   * @param {Object}   queryModule  The N/query module reference
+   * @param {string}   sql          Complete SQL (with ORDER BY)
+   * @param {any[]}    params       Bind parameters
+   * @param {Function} mapFn        (row: Object) => mapped object
+   * @param {number}   rowBegin     1-based start row
+   * @param {number}   rowEnd       1-based end row
+   * @returns {Object[]}  Mapped records for this page
+   */
+  const runSuiteQLPage = (queryModule, sql, params, mapFn, rowBegin, rowEnd) => {
+    const paginatedSQL = 'SELECT * FROM ( SELECT ROWNUM AS ROWNUMBER, * FROM (' + sql + ') ) WHERE ( ROWNUMBER BETWEEN ' + rowBegin + ' AND ' + rowEnd + ')';
+    const queryResults = queryModule.runSuiteQL({ query: paginatedSQL, params: params }).asMappedResults();
+    log.debug({ title: 'PDC runSuiteQLPage', details: 'rows ' + rowBegin + '-' + rowEnd + ' returned ' + queryResults.length });
+    return queryResults.map(mapFn);
+  };
+
+  /**
+   * Count total rows for a query using ROWNUM wrapper.
+   *
+   * @param {Object}   queryModule  The N/query module reference
+   * @param {string}   sql          Base SQL
+   * @param {any[]}    params       Bind parameters
+   * @returns {number}
+   */
+  const runSuiteQLCount = (queryModule, sql, params) => {
+    const countSQL = 'SELECT COUNT(*) AS cnt FROM (' + sql + ')';
+    const rows = queryModule.runSuiteQL({ query: countSQL, params: params }).asMappedResults();
+    return rows.length > 0 ? parseInt(rows[0].cnt, 10) : 0;
+  };
+
+  /**
    * Write a JSON success / list response.
    */
   const writeJsonResponse = (response, payload) => {
@@ -181,6 +216,8 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
     pushIdFilter,
     buildCommonFilters,
     runSuiteQLPaginated,
+    runSuiteQLPage,
+    runSuiteQLCount,
     writeJsonResponse,
     normalizeStatusCode,
     statusInLiteral

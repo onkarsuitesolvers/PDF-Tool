@@ -75,10 +75,23 @@ define(
       };
     };
 
+    const reqRowBegin = parseInt(p.rowBegin, 10) || 0;
+    const reqRowEnd   = parseInt(p.rowEnd, 10)   || 0;
+
     try {
-      const groups = qh.runSuiteQLPaginated(query, sql, params, mapRow);
-      log.debug({ title: 'PDC invoiceGroups.serve result', details: 'count=' + groups.length });
-      qh.writeJsonResponse(response, { success: true, count: groups.length, invoices: groups });
+      if (reqRowBegin > 0 && reqRowEnd > 0) {
+        const groups = qh.runSuiteQLPage(query, sql, params, mapRow, reqRowBegin, reqRowEnd);
+        const result = { success: true, count: groups.length, invoices: groups };
+        if (reqRowBegin === 1) {
+          result.totalCount = qh.runSuiteQLCount(query, sql, params);
+        }
+        log.debug({ title: 'PDC invoiceGroups.serve paged', details: 'rows ' + reqRowBegin + '-' + reqRowEnd + ' returned ' + groups.length + (result.totalCount != null ? ' total=' + result.totalCount : '') });
+        qh.writeJsonResponse(response, result);
+      } else {
+        const groups = qh.runSuiteQLPaginated(query, sql, params, mapRow);
+        log.debug({ title: 'PDC invoiceGroups.serve result', details: 'count=' + groups.length });
+        qh.writeJsonResponse(response, { success: true, count: groups.length, invoices: groups });
+      }
     } catch (e) {
       log.error({ title: 'PDC invoiceGroups.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });
       throw e;

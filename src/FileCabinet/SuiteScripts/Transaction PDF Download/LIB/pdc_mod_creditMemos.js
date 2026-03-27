@@ -66,10 +66,23 @@ define(
       statusCode: row.statuscode  || ''
     });
 
+    const reqRowBegin = parseInt(p.rowBegin, 10) || 0;
+    const reqRowEnd   = parseInt(p.rowEnd, 10)   || 0;
+
     try {
-      const memos = qh.runSuiteQLPaginated(query, sql, params, mapRow);
-      log.debug({ title: 'PDC creditMemos.serve result', details: 'count=' + memos.length });
-      qh.writeJsonResponse(response, { success: true, count: memos.length, invoices: memos });
+      if (reqRowBegin > 0 && reqRowEnd > 0) {
+        const memos = qh.runSuiteQLPage(query, sql, params, mapRow, reqRowBegin, reqRowEnd);
+        const result = { success: true, count: memos.length, invoices: memos };
+        if (reqRowBegin === 1) {
+          result.totalCount = qh.runSuiteQLCount(query, sql, params);
+        }
+        log.debug({ title: 'PDC creditMemos.serve paged', details: 'rows ' + reqRowBegin + '-' + reqRowEnd + ' returned ' + memos.length + (result.totalCount != null ? ' total=' + result.totalCount : '') });
+        qh.writeJsonResponse(response, result);
+      } else {
+        const memos = qh.runSuiteQLPaginated(query, sql, params, mapRow);
+        log.debug({ title: 'PDC creditMemos.serve result', details: 'count=' + memos.length });
+        qh.writeJsonResponse(response, { success: true, count: memos.length, invoices: memos });
+      }
     } catch (e) {
       log.error({ title: 'PDC creditMemos.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });
       throw e;

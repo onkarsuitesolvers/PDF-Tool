@@ -188,13 +188,13 @@ function updateStatusOptions() {
 
 /* ─────────────────────────────────────────
    UNIFIED SEARCH DISPATCHER
-   Server-side ROWNUM pagination (based on
-   Tim Dietrich's SuiteQL Query Tool pattern).
-   One fetch per type — no client-side paging.
+   ROWNUM pagination on server, client fetches
+   page-by-page with live progress & exact counts.
 ───────────────────────────────────────── */
+const SEARCH_PAGE_SIZE = 5000;   // rows per page — matches server ROWNUM_PAGE
 
 /* ── Search progress overlay helpers ── */
-function showSearchProgress(msg) {
+function showSearchProgress() {
   hideSearchProgress();
   var overlay = document.createElement('div');
   overlay.id = 'search-progress-overlay';
@@ -207,22 +207,34 @@ function showSearchProgress(msg) {
   var title = document.createElement('div');
   title.id = 'search-progress-title';
   title.style.cssText = 'font-size:1.1rem;font-weight:600;color:#4d5f79;margin-bottom:0.75rem;';
-  title.textContent = msg || 'Searching...';
+  title.textContent = 'Extracting search results...';
   box.appendChild(title);
+  // Progress bar
+  var barOuter = document.createElement('div');
+  barOuter.style.cssText = 'width:100%;height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden;margin-bottom:0.5rem;';
+  var barInner = document.createElement('div');
+  barInner.id = 'search-progress-bar';
+  barInner.style.cssText = 'width:0%;height:100%;background:linear-gradient(90deg,#4d5f79,#6b8cae);border-radius:4px;transition:width 0.3s ease;';
+  barOuter.appendChild(barInner);
+  box.appendChild(barOuter);
+  // Status text
   var status = document.createElement('div');
   status.id = 'search-progress-status';
   status.style.cssText = 'font-size:0.85rem;color:#666;';
-  status.textContent = '';
+  status.textContent = 'Starting search...';
   box.appendChild(status);
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 }
 
-function updateSearchProgressText(titleText, statusText) {
-  var t = document.getElementById('search-progress-title');
-  var s = document.getElementById('search-progress-status');
-  if (t && titleText) t.textContent = titleText;
-  if (s && statusText) s.textContent = statusText;
+function updateSearchProgress(fetched, total, typeLabel) {
+  var bar = document.getElementById('search-progress-bar');
+  var status = document.getElementById('search-progress-status');
+  var title = document.getElementById('search-progress-title');
+  var pct = total > 0 ? Math.round((fetched / total) * 100) : 0;
+  if (bar) bar.style.width = pct + '%';
+  if (status) status.textContent = 'Extracted ' + fetched + ' of ' + total + ' records' + (typeLabel ? ' (' + typeLabel + ')' : '');
+  if (title) title.textContent = 'Extracting search results... ' + pct + '%';
 }
 
 function hideSearchProgress() {
@@ -246,7 +258,7 @@ async function doSearch() {
   var allSelectedStatuses = msGetValues('status');
   console.log('[PDC doSearch] statuses=' + JSON.stringify(allSelectedStatuses) + ' types=' + JSON.stringify(typesToSearch));
 
-  showSearchProgress('Extracting search results...');
+  showSearchProgress();
 
   try {
     function getStatusForType(typeKey) {
@@ -258,6 +270,8 @@ async function doSearch() {
     }
 
     var allInvoices = [];
+    var grandTotal = 0;
+    var grandFetched = 0;
 
     for (var ti = 0; ti < typesToSearch.length; ti++) {
       var typeKey = typesToSearch[ti];
@@ -268,9 +282,8 @@ async function doSearch() {
       if (statusForType === null) continue;
 
       var typeLabel = typeCfg.typeLabel || typeKey;
-      updateSearchProgressText('Searching ' + typeLabel + 's...', allInvoices.length > 0 ? allInvoices.length + ' records found so far' : '');
 
-      var params = new URLSearchParams({
+      var baseParams = {
         action:     typeCfg.action,
         dateFrom:   document.getElementById('f-dateFrom').value,
         dateTo:     document.getElementById('f-dateTo').value,
@@ -278,22 +291,57 @@ async function doSearch() {
         subsidiary: msGetValues('subsidiary').join(','),
         status:     statusForType,
         tranId:     (document.getElementById('f-tranId').value || '').trim()
-      });
+      };
 
-      console.log('[PDC doSearch] fetching type=' + typeKey);
-      var resp = await fetch(BASE_URL + '&' + params.toString());
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      var data = await resp.json();
-      if (!data.success) throw new Error(data.error || 'Unknown error');
+      // Page-by-page fetch using ROWNUM (rowBegin/rowEnd)
+      var rowBegin = 1;
+      var typeTotal = 0;
+      var moreRecords = true;
 
-      var items = (data.invoices || []).map(function(inv) {
-        return Object.assign({}, inv, { _typeLabel: typeLabel, _typeKey: typeKey });
-      });
-      allInvoices = allInvoices.concat(items);
-      console.log('[PDC doSearch] type=' + typeKey + ' returned ' + items.length + ' total so far=' + allInvoices.length);
+      while (moreRecords) {
+        var rowEnd = rowBegin + SEARCH_PAGE_SIZE - 1;
+        var params = new URLSearchParams(Object.assign({}, baseParams, {
+          rowBegin: rowBegin,
+          rowEnd:   rowEnd
+        }));
+
+        console.log('[PDC doSearch] type=' + typeKey + ' rows ' + rowBegin + '-' + rowEnd);
+        var resp = await fetch(BASE_URL + '&' + params.toString());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        var data = await resp.json();
+        if (!data.success) throw new Error(data.error || 'Unknown error');
+
+        // First page returns totalCount
+        if (rowBegin === 1 && data.totalCount != null) {
+          typeTotal = data.totalCount;
+          grandTotal += typeTotal;
+        }
+
+        var items = (data.invoices || []).map(function(inv) {
+          return Object.assign({}, inv, { _typeLabel: typeLabel, _typeKey: typeKey });
+        });
+        allInvoices = allInvoices.concat(items);
+        grandFetched += items.length;
+
+        console.log('[PDC doSearch] type=' + typeKey + ' page returned ' + items.length + ' fetched=' + grandFetched + '/' + grandTotal);
+        updateSearchProgress(grandFetched, grandTotal, typeLabel);
+
+        // ROWNUM termination: if page returned fewer than page size, no more rows
+        if (items.length < SEARCH_PAGE_SIZE) {
+          moreRecords = false;
+        } else {
+          rowBegin += SEARCH_PAGE_SIZE;
+        }
+      }
     }
 
-    updateSearchProgressText('Please wait, rendering ' + allInvoices.length + ' records to screen...', 'Extracted ' + allInvoices.length + ' records');
+    // Update overlay to rendering phase
+    var title = document.getElementById('search-progress-title');
+    if (title) title.textContent = 'Please wait, rendering ' + allInvoices.length + ' records to screen...';
+    var bar = document.getElementById('search-progress-bar');
+    if (bar) bar.style.width = '100%';
+    var status = document.getElementById('search-progress-status');
+    if (status) status.textContent = 'Extracted ' + allInvoices.length + ' records — rendering table...';
 
     // Yield to browser so the rendering message is visible before the heavy renderTable call
     await new Promise(function (resolve) { requestAnimationFrame(function () { setTimeout(resolve, 50); }); });

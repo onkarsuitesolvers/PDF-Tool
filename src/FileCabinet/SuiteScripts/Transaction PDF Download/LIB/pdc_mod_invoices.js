@@ -66,10 +66,25 @@ define(
       statusCode: row.statuscode  || ''
     });
 
+    const reqRowBegin = parseInt(p.rowBegin, 10) || 0;
+    const reqRowEnd   = parseInt(p.rowEnd, 10)   || 0;
+
     try {
-      const invoices = qh.runSuiteQLPaginated(query, sql, params, mapRow);
-      log.debug({ title: 'PDC invoices.serve result', details: 'count=' + invoices.length });
-      qh.writeJsonResponse(response, { success: true, count: invoices.length, invoices });
+      if (reqRowBegin > 0 && reqRowEnd > 0) {
+        // Paged mode: return one ROWNUM page; total count on first page only
+        const invoices = qh.runSuiteQLPage(query, sql, params, mapRow, reqRowBegin, reqRowEnd);
+        const result = { success: true, count: invoices.length, invoices };
+        if (reqRowBegin === 1) {
+          result.totalCount = qh.runSuiteQLCount(query, sql, params);
+        }
+        log.debug({ title: 'PDC invoices.serve paged', details: 'rows ' + reqRowBegin + '-' + reqRowEnd + ' returned ' + invoices.length + (result.totalCount != null ? ' total=' + result.totalCount : '') });
+        qh.writeJsonResponse(response, result);
+      } else {
+        // Full mode: return all results using server-side ROWNUM loop
+        const invoices = qh.runSuiteQLPaginated(query, sql, params, mapRow);
+        log.debug({ title: 'PDC invoices.serve result', details: 'count=' + invoices.length });
+        qh.writeJsonResponse(response, { success: true, count: invoices.length, invoices });
+      }
     } catch (e) {
       log.error({ title: 'PDC invoices.serve SQL ERROR', details: e.message + '\nSQL: ' + sql + '\nParams: ' + JSON.stringify(params) });
       throw e;
