@@ -41,7 +41,7 @@ define(
     // Status filter
     if (p.status) {
       log.debug({ title: 'PDC invoices.serve raw status', details: 'raw p.status="' + p.status + '" | typeof=' + typeof p.status });
-      const codes = p.status.split(',').map(s => qh.normalizeStatusCode(decodeURIComponent(s.trim()))).filter(Boolean);
+      const codes = p.status.split(',').map(s => qh.toSuiteQLStatus(qh.normalizeStatusCode(decodeURIComponent(s.trim())))).filter(Boolean);
       log.debug({ title: 'PDC invoices.serve processed status', details: 'codes=' + JSON.stringify(codes) });
       if (codes.length) {
         conditions.push("t.status IN (" + qh.statusInLiteral(codes) + ")");
