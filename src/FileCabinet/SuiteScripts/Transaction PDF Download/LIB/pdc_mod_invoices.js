@@ -24,17 +24,9 @@ define(
     const { conditions, params } = qh.buildCommonFilters(p, {
       dateCol:       't.trandate',
       customerCol:   't.entity',
-      subsidiaryCol: null   // subsidiary is on transactionline, not transaction
+      subsidiaryCol: 't.subsidiary'
     });
     conditions.unshift("t.recordtype = 'invoice'", "t.voided = 'F'");
-
-    // Subsidiary filter via transactionline (not exposed on transaction in SuiteQL)
-    const subIds = qh.parseIdList(p.subsidiary);
-    if (subIds.length === 1) {
-      conditions.push(`EXISTS (SELECT 1 FROM transactionline tl WHERE tl.transaction = t.id AND tl.subsidiary = ${subIds[0]})`);
-    } else if (subIds.length > 1) {
-      conditions.push(`EXISTS (SELECT 1 FROM transactionline tl WHERE tl.transaction = t.id AND tl.subsidiary IN (${subIds.join(',')}))`);
-    }
 
     // Status filter
     if (p.status) {
