@@ -54,14 +54,14 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
    * @param {Object}  opts
    * @param {string}  opts.dateCol     Column for trandate   (default 't.trandate')
    * @param {string}  opts.customerCol Column for entity/cust (default 't.entity')
-   * @param {string}  opts.subsidiaryCol Column for subsidiary (default 't.subsidiary', pass null to skip)
+   * @param {string}  opts.subsidiaryCol Column for subsidiary (default null; transaction table does not expose subsidiary in SuiteQL)
    * @param {string}  opts.tranIdCol   Column for tranid (default 't.tranid')
    * @returns {{ conditions: string[], params: any[] }}
    */
   const buildCommonFilters = (p, opts = {}) => {
     const dateCol       = opts.dateCol       || 't.trandate';
     const customerCol   = opts.customerCol   || 't.entity';
-    const subsidiaryCol = opts.subsidiaryCol !== undefined ? opts.subsidiaryCol : 't.subsidiary';
+    const subsidiaryCol = opts.subsidiaryCol !== undefined ? opts.subsidiaryCol : null;
     const tranIdCol     = opts.tranIdCol     || 't.tranid';
 
     const conditions = [];
