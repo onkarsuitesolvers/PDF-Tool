@@ -40,6 +40,7 @@ let downloading   = false;
 let dlStartTime   = 0;
 let successCount  = 0;
 let failedCount   = 0;
+let failedItems   = [];
 const rowStatus   = {};
 let currentPage   = 'invoices'; // 'invoices' | 'creditmemos' | 'invoicegroups'
 
@@ -653,7 +654,7 @@ function setRowStatus(id, status, errMsg) {
   dot.className = 'status-dot dot-' + status;
   if (lbl) {
     lbl.textContent = status === 'ok'     ? '✓ Saved'
-                    : status === 'err'    ? '✗ Failed'
+                    : status === 'err'    ? '✗ ' + (errMsg || 'Failed')
                     : status === 'active' ? 'Downloading…'
                     : 'Pending';
     lbl.title = (status === 'err' && errMsg) ? errMsg : '';
@@ -1375,6 +1376,7 @@ async function startDownload() {
 
   successCount = 0;
   failedCount  = 0;
+  failedItems  = [];
   cancelled    = false;
   abortCtrl    = new AbortController();
   paused       = false;
@@ -1443,6 +1445,7 @@ async function startDownload() {
       successCount++;
     } else {
       failedCount++;
+      failedItems.push({ tranId: result.inv.tranId, reason: result.error || 'Unknown error' });
     }
 
     setStats(total, successCount, failedCount);
@@ -1470,6 +1473,19 @@ async function startDownload() {
     document.getElementById('done-path').textContent    = writeDirName;
     document.getElementById('done-path-card').style.display = 'flex';
     document.getElementById('step3-sub').textContent = \`\${successCount} PDF\${successCount!==1?'s':''} saved to \${writeDirName}\`;
+
+    // Show failed items with reasons
+    var errList = document.getElementById('done-error-list');
+    var errItems = document.getElementById('done-error-items');
+    if (hasErrors && failedItems.length > 0) {
+      errItems.innerHTML = failedItems.map(function(f) {
+        return '<li><strong>' + escHtml(f.tranId) + '</strong> — ' + escHtml(f.reason) + '</li>';
+      }).join('');
+      errList.style.display = 'block';
+    } else {
+      errList.style.display = 'none';
+      errItems.innerHTML = '';
+    }
 
     goToStep(3);
   }

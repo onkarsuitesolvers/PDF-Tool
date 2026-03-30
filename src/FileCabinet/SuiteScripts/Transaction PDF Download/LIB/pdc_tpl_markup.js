@@ -527,6 +527,11 @@ define([], () => {
           </div>
         </div>
 
+        <div id="done-error-list" style="display:none;max-height:160px;overflow-y:auto;text-align:left;margin:10px 0;padding:8px 12px;border-radius:8px;background:var(--rose-bg,#fff5f5);border:1px solid var(--rose,#e53e3e);font-size:12.5px;">
+          <div style="font-weight:600;margin-bottom:6px;color:var(--rose,#e53e3e);">Failed Downloads:</div>
+          <ul id="done-error-items" style="margin:0;padding-left:18px;list-style:disc;color:var(--text-dark,#333);"></ul>
+        </div>
+
         <div class="done-actions">
           <button type="button" class="btn btn-outline" onclick="resetAndClose()">← New Search</button>
           <button type="button" class="btn btn-success" onclick="closeModal()">Done</button>
