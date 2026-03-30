@@ -18,7 +18,7 @@ define(
    * Map a search result row to the standard response object.
    */
   const mapResult = (result) => {
-    const statusCode = (result.getValue('status') || '').toString().toUpperCase();
+    const statusCode = (result.getValue('invoicegroupstatus') || '').toString().toUpperCase();
     const statusLabel = statusCode === 'PAIDFULL' ? 'Paid in Full'
                       : statusCode === 'PAIDPART' ? 'Partially Paid'
                       : statusCode === 'OPEN'     ? 'Open'
@@ -30,7 +30,7 @@ define(
       customer:   result.getText('customer') || 'Unknown',
       date:       result.getValue('trandate') || '',
       dueDate:    result.getValue('duedate') || '',
-      amount:     result.getValue('amountdue'),
+      amount:     result.getValue('fxamountdue'),
       currency:   '',
       status:     statusLabel,
       statusCode: statusCode
@@ -89,8 +89,8 @@ define(
       search.createColumn({ name: 'customer' }),
       search.createColumn({ name: 'trandate', sort: search.Sort.DESC }),
       search.createColumn({ name: 'duedate' }),
-      search.createColumn({ name: 'amountdue' }),
-      search.createColumn({ name: 'status' })
+      search.createColumn({ name: 'fxamountdue' }),
+      search.createColumn({ name: 'invoicegroupstatus' })
     ];
 
     const reqRowBegin = parseInt(p.rowBegin, 10) || 0;
