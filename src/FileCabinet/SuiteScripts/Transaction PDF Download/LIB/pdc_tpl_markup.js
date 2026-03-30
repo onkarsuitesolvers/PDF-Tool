@@ -282,12 +282,8 @@ define([], () => {
               <span id="chip-count">0 PDFs</span>
             </div>
             <div class="s-chip">
-              <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/><path d="M6 3.5v3l2 1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+              <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M2 1.5h5l1.5 2H10a1 1 0 011 1v5a1 1 0 01-1 1H2a1 1 0 01-1-1v-7a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/><path d="M4 7h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
               Est. ~<span id="chip-est">0</span> KB
-            </div>
-            <div class="s-chip" id="chip-mode">
-              <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M2 3h3.5l1 1H10a1 1 0 011 1v4a1 1 0 01-1 1H2a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/></svg>
-              Folder Mode
             </div>
           </div>
         </div>
