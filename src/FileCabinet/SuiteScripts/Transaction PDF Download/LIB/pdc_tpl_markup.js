@@ -330,7 +330,7 @@ define([], () => {
               </select>
             </div>
             <div class="field-g">
-              <label>Concurrent Downloads &nbsp;<span style="color:var(--teal-mid);font-weight:700" id="concur-display">5</span></label>
+              <label>Download at a time &nbsp;<span style="color:var(--teal-mid);font-weight:700" id="concur-display">5</span></label>
               <div class="slider-wrap">
                 <span style="font-size:11px;color:var(--text-muted)">1</span>
                 <input type="range" min="1" max="10" value="5" id="f-concur"
@@ -471,7 +471,7 @@ define([], () => {
 
       <div class="modal-footer">
         <div style="font-size:12px;color:var(--text-muted)">
-          Concurrent: <strong id="concur-val" style="color:var(--teal-mid)">5</strong> · Skip errors: <strong id="skiperr-disp" style="color:var(--teal-mid)">On</strong>
+          At a time: <strong id="concur-val" style="color:var(--teal-mid)">5</strong> · Skip errors: <strong id="skiperr-disp" style="color:var(--teal-mid)">On</strong>
         </div>
       </div>
     </div><!-- /step 2 -->
