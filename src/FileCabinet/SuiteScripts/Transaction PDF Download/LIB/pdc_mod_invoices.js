@@ -9,8 +9,8 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 define(
-  ['N/query', 'N/log', './pdc_mod_queryHelper'],
-  (query, log, qh) => {
+  ['N/query', 'N/log', 'N/runtime', './pdc_mod_queryHelper'],
+  (query, log, runtime, qh) => {
 
   /**
    * Serve the filtered invoice list as JSON.
@@ -18,6 +18,8 @@ define(
    */
   const serve = ({ request, response }) => {
     const p = request.parameters;
+    const user = runtime.getCurrentUser();
+    log.debug({ title: 'PDC invoices.serve context', details: 'userId=' + user.id + ' | role=' + user.role + ' | roleCenter=' + user.roleCenter + ' | subsidiary=' + user.subsidiary });
     log.debug({ title: 'PDC invoices.serve', details: 'p.status=' + (p.status || '(empty)') + ' | p.customer=' + (p.customer || '') + ' | p.dateFrom=' + (p.dateFrom || '') + ' | p.dateTo=' + (p.dateTo || '') });
 
     // Base conditions
@@ -30,11 +32,15 @@ define(
 
     // Status filter
     if (p.status) {
+      log.debug({ title: 'PDC invoices.serve raw status', details: 'raw p.status="' + p.status + '" | typeof=' + typeof p.status });
       const codes = p.status.split(',').map(s => qh.normalizeStatusCode(decodeURIComponent(s.trim()))).filter(Boolean);
+      log.debug({ title: 'PDC invoices.serve processed status', details: 'codes=' + JSON.stringify(codes) });
       if (codes.length) {
         conditions.push("t.status IN (" + qh.statusInLiteral(codes) + ")");
       }
     }
+
+    log.debug({ title: 'PDC invoices.serve allConditions', details: conditions.join(' AND ') });
 
     const sql = `
       SELECT

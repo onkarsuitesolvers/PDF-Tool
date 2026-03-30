@@ -69,24 +69,36 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
 
     if (p.dateFrom) {
       const df = validateDateLiteral(p.dateFrom);
-      conditions.push(`${dateCol} >= TO_DATE('${df}', 'YYYY-MM-DD')`);
+      const cond = `${dateCol} >= TO_DATE('${df}', 'YYYY-MM-DD')`;
+      conditions.push(cond);
+      log.debug({ title: 'PDC buildCommonFilters condition', details: 'dateFrom → ' + cond });
     }
     if (p.dateTo) {
       const dt = validateDateLiteral(p.dateTo);
-      conditions.push(`${dateCol} <= TO_DATE('${dt}', 'YYYY-MM-DD')`);
+      const cond = `${dateCol} <= TO_DATE('${dt}', 'YYYY-MM-DD')`;
+      conditions.push(cond);
+      log.debug({ title: 'PDC buildCommonFilters condition', details: 'dateTo → ' + cond });
     }
 
     if (p.tranId && p.tranId.trim()) {
       const tid = p.tranId.trim().replace(/'/g, "''");
-      conditions.push(`${tranIdCol} LIKE '%${tid}%'`);
+      const cond = `${tranIdCol} LIKE '%${tid}%'`;
+      conditions.push(cond);
+      log.debug({ title: 'PDC buildCommonFilters condition', details: 'tranId → ' + cond });
     }
 
     const custIds = parseIdList(p.customer);
-    if (custIds.length) pushIdFilter(conditions, params, customerCol, custIds);
+    if (custIds.length) {
+      pushIdFilter(conditions, params, customerCol, custIds);
+      log.debug({ title: 'PDC buildCommonFilters condition', details: 'customer → ' + customerCol + ' ids=' + custIds.join(',') });
+    }
 
     if (subsidiaryCol) {
       const subIds = parseIdList(p.subsidiary);
-      if (subIds.length) pushIdFilter(conditions, params, subsidiaryCol, subIds);
+      if (subIds.length) {
+        pushIdFilter(conditions, params, subsidiaryCol, subIds);
+        log.debug({ title: 'PDC buildCommonFilters condition', details: 'subsidiary → ' + subsidiaryCol + ' ids=' + subIds.join(',') });
+      }
     }
 
     log.debug({ title: 'PDC queryHelper.buildCommonFilters', details: 'dateFrom=' + (p.dateFrom || '') + ' dateTo=' + (p.dateTo || '') + ' customer=' + (p.customer || '') + ' subsidiary=' + (p.subsidiary || '') + ' tranId=' + (p.tranId || '') + ' | built ' + conditions.length + ' conditions' });
@@ -153,8 +165,13 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
    */
   const runSuiteQLPage = (queryModule, sql, params, mapFn, rowBegin, rowEnd) => {
     const paginatedSQL = 'SELECT * FROM ( SELECT ROWNUM AS ROWNUMBER, * FROM (' + sql + ') ) WHERE ( ROWNUMBER BETWEEN ' + rowBegin + ' AND ' + rowEnd + ')';
+    log.debug({ title: 'PDC runSuiteQLPage FULL SQL', details: paginatedSQL });
+    log.debug({ title: 'PDC runSuiteQLPage params', details: JSON.stringify(params) });
     const queryResults = queryModule.runSuiteQL({ query: paginatedSQL, params: params }).asMappedResults();
     log.debug({ title: 'PDC runSuiteQLPage', details: 'rows ' + rowBegin + '-' + rowEnd + ' returned ' + queryResults.length });
+    if (queryResults.length > 0) {
+      log.debug({ title: 'PDC runSuiteQLPage sample row', details: JSON.stringify(queryResults[0]) });
+    }
     return queryResults.map(mapFn);
   };
 
@@ -168,8 +185,11 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
    */
   const runSuiteQLCount = (queryModule, sql, params) => {
     const countSQL = 'SELECT COUNT(*) AS cnt FROM (' + sql + ')';
+    log.debug({ title: 'PDC runSuiteQLCount SQL', details: countSQL });
     const rows = queryModule.runSuiteQL({ query: countSQL, params: params }).asMappedResults();
-    return rows.length > 0 ? parseInt(rows[0].cnt, 10) : 0;
+    const cnt = rows.length > 0 ? parseInt(rows[0].cnt, 10) : 0;
+    log.debug({ title: 'PDC runSuiteQLCount result', details: 'count=' + cnt + ' rawRow=' + JSON.stringify(rows[0] || {}) });
+    return cnt;
   };
 
   /**
