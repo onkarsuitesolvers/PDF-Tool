@@ -112,7 +112,7 @@ const PAGE_CONFIG = {
       { id: 'PAIDPART', label: 'Invoice Group: Partially Paid' },
       { id: 'PAIDFULL', label: 'Invoice Group: Paid in Full' }
     ],
-    hideFilters: ['subsidiary'],
+    hideFilters: [],
     theadHTML: \`<tr>
       <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
       <th>Type</th><th>Group ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
