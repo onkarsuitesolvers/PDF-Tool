@@ -26,9 +26,17 @@ define(
     const { conditions, params } = qh.buildCommonFilters(p, {
       dateCol:       't.trandate',
       customerCol:   't.entity',
-      subsidiaryCol: 't.subsidiary'
+      subsidiaryCol: null   // subsidiary is on transactionline, not transaction
     });
     conditions.unshift("t.recordtype = 'invoice'", "t.voided = 'F'");
+
+    // Subsidiary filter via transactionline (not exposed on transaction in SuiteQL)
+    const subIds = qh.parseIdList(p.subsidiary);
+    if (subIds.length === 1) {
+      conditions.push(`EXISTS (SELECT 1 FROM transactionline tl WHERE tl.transaction = t.id AND tl.subsidiary = ${subIds[0]})`);
+    } else if (subIds.length > 1) {
+      conditions.push(`EXISTS (SELECT 1 FROM transactionline tl WHERE tl.transaction = t.id AND tl.subsidiary IN (${subIds.join(',')}))`);
+    }
 
     // Status filter
     if (p.status) {
@@ -84,6 +92,15 @@ define(
           result.totalCount = qh.runSuiteQLCount(query, sql, params);
         }
         log.debug({ title: 'PDC invoices.serve paged', details: 'rows ' + reqRowBegin + '-' + reqRowEnd + ' returned ' + invoices.length + (result.totalCount != null ? ' total=' + result.totalCount : '') });
+        // Diagnostic: if status filter returned 0 results, run base SQL without wrappers
+        if (invoices.length === 0 && p.status) {
+          try {
+            const diagRows = query.runSuiteQL({ query: sql }).asMappedResults();
+            log.debug({ title: 'PDC DIAG base SQL direct', details: 'rows=' + diagRows.length + (diagRows.length > 0 ? ' sample=' + JSON.stringify(diagRows[0]) : '') });
+          } catch (de) {
+            log.debug({ title: 'PDC DIAG error', details: de.message });
+          }
+        }
         qh.writeJsonResponse(response, result);
       } else {
         // Full mode: return all results using server-side ROWNUM loop

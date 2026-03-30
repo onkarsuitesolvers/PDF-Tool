@@ -54,14 +54,14 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
    * @param {Object}  opts
    * @param {string}  opts.dateCol     Column for trandate   (default 't.trandate')
    * @param {string}  opts.customerCol Column for entity/cust (default 't.entity')
-   * @param {string}  opts.subsidiaryCol Column for subsidiary (default 't.subsidiary', pass null to skip)
+   * @param {string}  opts.subsidiaryCol Column for subsidiary (default null; transaction table does not expose subsidiary in SuiteQL)
    * @param {string}  opts.tranIdCol   Column for tranid (default 't.tranid')
    * @returns {{ conditions: string[], params: any[] }}
    */
   const buildCommonFilters = (p, opts = {}) => {
     const dateCol       = opts.dateCol       || 't.trandate';
     const customerCol   = opts.customerCol   || 't.entity';
-    const subsidiaryCol = opts.subsidiaryCol !== undefined ? opts.subsidiaryCol : 't.subsidiary';
+    const subsidiaryCol = opts.subsidiaryCol !== undefined ? opts.subsidiaryCol : null;
     const tranIdCol     = opts.tranIdCol     || 't.tranid';
 
     const conditions = [];
@@ -137,7 +137,9 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
       const rowEnd = rowBegin + ROWNUM_PAGE - 1;
       const paginatedSQL = 'SELECT * FROM ( SELECT ROWNUM AS ROWNUMBER, * FROM (' + sql + ') ) WHERE ( ROWNUMBER BETWEEN ' + rowBegin + ' AND ' + rowEnd + ')';
 
-      const queryResults = queryModule.runSuiteQL({ query: paginatedSQL, params: params }).asMappedResults();
+      const runOpts = { query: paginatedSQL };
+      if (params && params.length > 0) runOpts.params = params;
+      const queryResults = queryModule.runSuiteQL(runOpts).asMappedResults();
       queryResults.forEach(row => records.push(mapFn(row)));
 
       log.debug({ title: 'PDC runSuiteQLPaginated', details: 'rows ' + rowBegin + '-' + rowEnd + ' returned ' + queryResults.length + ', total so far: ' + records.length });
@@ -167,7 +169,9 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
     const paginatedSQL = 'SELECT * FROM ( SELECT ROWNUM AS ROWNUMBER, * FROM (' + sql + ') ) WHERE ( ROWNUMBER BETWEEN ' + rowBegin + ' AND ' + rowEnd + ')';
     log.debug({ title: 'PDC runSuiteQLPage FULL SQL', details: paginatedSQL });
     log.debug({ title: 'PDC runSuiteQLPage params', details: JSON.stringify(params) });
-    const queryResults = queryModule.runSuiteQL({ query: paginatedSQL, params: params }).asMappedResults();
+    const runOpts = { query: paginatedSQL };
+    if (params && params.length > 0) runOpts.params = params;
+    const queryResults = queryModule.runSuiteQL(runOpts).asMappedResults();
     log.debug({ title: 'PDC runSuiteQLPage', details: 'rows ' + rowBegin + '-' + rowEnd + ' returned ' + queryResults.length });
     if (queryResults.length > 0) {
       log.debug({ title: 'PDC runSuiteQLPage sample row', details: JSON.stringify(queryResults[0]) });
@@ -186,7 +190,9 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
   const runSuiteQLCount = (queryModule, sql, params) => {
     const countSQL = 'SELECT COUNT(*) AS cnt FROM (' + sql + ')';
     log.debug({ title: 'PDC runSuiteQLCount SQL', details: countSQL });
-    const rows = queryModule.runSuiteQL({ query: countSQL, params: params }).asMappedResults();
+    const runOpts = { query: countSQL };
+    if (params && params.length > 0) runOpts.params = params;
+    const rows = queryModule.runSuiteQL(runOpts).asMappedResults();
     const cnt = rows.length > 0 ? parseInt(rows[0].cnt, 10) : 0;
     log.debug({ title: 'PDC runSuiteQLCount result', details: 'count=' + cnt + ' rawRow=' + JSON.stringify(rows[0] || {}) });
     return cnt;
