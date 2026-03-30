@@ -200,7 +200,7 @@ body::before {
 .table-actions { display: flex; gap: 8px; align-items: center; }
 
 .table-scroll { max-height: 520px; overflow-y: auto; }
-table { width: 100%; border-collapse: collapse; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 thead tr { background: #F2FAFA; border-bottom: 1px solid var(--border); }
 th {
   padding: 11px 14px 10px; text-align: left;
@@ -209,7 +209,7 @@ th {
   position: sticky; top: 0; background: #F2FAFA;
   border-bottom: 1px solid var(--border);
 }
-th:first-child { padding-left: 20px; width: 44px; }
+th:first-child { padding-left: 20px; }
 th:last-child  { padding-right: 20px; text-align: right; }
 tbody tr { border-bottom: 1px solid #EEF5F5; transition: background 0.12s; }
 tbody tr:last-child { border-bottom: none; }
@@ -218,8 +218,9 @@ tbody tr.row-active { background: #EBF7F7; }
 tbody tr.row-ok     { background: var(--green-pale); }
 tbody tr.row-err    { background: var(--rose-pale); }
 td { padding: 13px 14px; font-size: 14.5px; color: var(--text-primary); vertical-align: middle; }
-td:first-child { padding-left: 20px; width: 44px; }
+td:first-child { padding-left: 20px; }
 td:last-child  { padding-right: 20px; text-align: right; }
+td:nth-child(4) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 0; }
 
 /* ── Pagination controls ── */
 .pagination-controls {
