@@ -867,7 +867,6 @@ function applyCustomRows(val) {
 
 /* ── Invoice row ── */
 function renderInvoiceRow(inv) {
-  const initials = avatarInitials(inv.customer);
   const amt      = formatAmt(inv.amount, inv.currency);
   const tr       = document.createElement('tr');
   tr.id = 'row-' + inv.id;
@@ -875,7 +874,7 @@ function renderInvoiceRow(inv) {
     <td class="cb-wrap"><input type="checkbox" class="row-cb" data-id="\${inv.id}" onchange="onRowCheck()"/></td>
     <td><span class="type-label">\${escHtml(inv._typeLabel || 'Invoice')}</span></td>
     <td><span class="tran-id">\${escHtml(inv.tranId)}</span></td>
-    <td><div class="cust-cell"><div class="cust-av">\${escHtml(initials)}</div>\${escHtml(inv.customer)}</div></td>
+    <td>\${escHtml(inv.customer)}</td>
     <td>\${escHtml(inv.date || '—')}</td>
     <td>\${escHtml(inv.dueDate || '—')}</td>
     <td><span class="amount">\${amt}</span></td>
@@ -900,7 +899,6 @@ function renderInvoiceRow(inv) {
 
 /* ── Credit Memo row ── */
 function renderCreditMemoRow(inv) {
-  const initials = avatarInitials(inv.customer);
   const amt      = formatAmt(inv.amount, inv.currency);
   const rem      = formatAmt(inv.remaining, inv.currency);
   const tr       = document.createElement('tr');
@@ -909,7 +907,7 @@ function renderCreditMemoRow(inv) {
     <td class="cb-wrap"><input type="checkbox" class="row-cb" data-id="\${inv.id}" onchange="onRowCheck()"/></td>
     <td><span class="type-label">\${escHtml(inv._typeLabel || 'Credit Memo')}</span></td>
     <td><span class="tran-id" style="color:var(--rose)">\${escHtml(inv.tranId)}</span></td>
-    <td><div class="cust-cell"><div class="cust-av" style="background:#E8EEF8;color:#3B6CB5">\${escHtml(initials)}</div>\${escHtml(inv.customer)}</div></td>
+    <td>\${escHtml(inv.customer)}</td>
     <td>\${escHtml(inv.date || '—')}</td>
     <td><span class="amount credit">\${amt}</span></td>
     <td style="color:var(--text-muted);font-size:12.5px">\${rem}</td>
@@ -934,7 +932,6 @@ function renderCreditMemoRow(inv) {
 
 /* ── Invoice Group row ── */
 function renderInvoiceGroupRow(inv) {
-  const initials = avatarInitials(inv.customer);
   const amt      = formatAmt(inv.amount, inv.currency);
   const tr       = document.createElement('tr');
   tr.id = 'row-' + inv.id;
@@ -942,7 +939,7 @@ function renderInvoiceGroupRow(inv) {
     <td class="cb-wrap"><input type="checkbox" class="row-cb" data-id="\${inv.id}" onchange="onRowCheck()"/></td>
     <td><span class="type-label">\${escHtml(inv._typeLabel || 'Invoice Group')}</span></td>
     <td><span class="tran-id" style="color:var(--amber)">\${escHtml(inv.tranId)}</span></td>
-    <td><div class="cust-cell"><div class="cust-av" style="background:#FEF0E0;color:#A07030">\${escHtml(initials)}</div>\${escHtml(inv.customer)}</div></td>
+    <td>\${escHtml(inv.customer)}</td>
     <td>\${escHtml(inv.date || '—')}</td>
     <td>\${escHtml(inv.dueDate || '—')}</td>
     <td><span class="amount">\${amt}</span></td>
