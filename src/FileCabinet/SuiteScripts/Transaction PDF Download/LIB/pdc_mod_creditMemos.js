@@ -38,7 +38,7 @@ define(
 
     // Status filter
     if (p.status) {
-      const codes = p.status.split(',').map(s => qh.normalizeStatusCode(decodeURIComponent(s.trim()))).filter(Boolean);
+      const codes = p.status.split(',').map(s => qh.toSuiteQLStatus(qh.normalizeStatusCode(decodeURIComponent(s.trim())))).filter(Boolean);
       if (codes.length) {
         conditions.push("t.status IN (" + qh.statusInLiteral(codes) + ")");
       }

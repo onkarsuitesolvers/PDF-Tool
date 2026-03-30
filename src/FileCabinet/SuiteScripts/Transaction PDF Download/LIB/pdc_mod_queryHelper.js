@@ -224,6 +224,19 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
     code.replace(/^(CustInvc|CustCred)([A-Z])$/, '$1:$2');
 
   /**
+   * Extract the short SuiteQL status code from a compound NetSuite status ID.
+   * SuiteQL's transaction.status column stores the short form ('A', 'B', 'D'),
+   * not the compound form ('CustInvc:A').  The compound form works in top-level
+   * queries but breaks inside ROWNUM / COUNT subquery wrappers.
+   *
+   * e.g. 'CustInvc:A' → 'A',  'CustCred:B' → 'B',  'OPEN' → 'OPEN'
+   */
+  const toSuiteQLStatus = (code) => {
+    const m = code.match(/^(?:CustInvc|CustCred):([A-Z])$/);
+    return m ? m[1] : code;
+  };
+
+  /**
    * Build a safe SQL IN-list literal for status codes.
    *
    * @param {string[]} codes  Status codes, e.g. ['CustInvc:A','CustInvc:B']
@@ -246,6 +259,7 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
     runSuiteQLCount,
     writeJsonResponse,
     normalizeStatusCode,
+    toSuiteQLStatus,
     statusInLiteral
   };
 });
