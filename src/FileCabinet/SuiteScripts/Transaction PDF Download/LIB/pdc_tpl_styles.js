@@ -218,7 +218,7 @@ tbody tr.row-active { background: #EBF7F7; }
 tbody tr.row-ok     { background: var(--green-pale); }
 tbody tr.row-err    { background: var(--rose-pale); }
 td { padding: 13px 14px; font-size: 14.5px; color: var(--text-primary); vertical-align: middle; }
-td:first-child { padding-left: 20px; }
+td:first-child { padding-left: 20px; width: 44px; }
 td:last-child  { padding-right: 20px; text-align: right; }
 
 /* ── Pagination controls ── */
