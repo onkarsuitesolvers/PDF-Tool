@@ -43,11 +43,11 @@ define([], () => {
     </div>
     <div class="filter-group">
       <div class="filter-label">Date From</div>
-      <input class="filter-input" type="date" id="f-dateFrom"/>
+      <input class="filter-input" type="text" id="f-dateFrom" placeholder="MM/DD/YYYY" maxlength="10"/>
     </div>
     <div class="filter-group">
       <div class="filter-label">Date To</div>
-      <input class="filter-input" type="date" id="f-dateTo"/>
+      <input class="filter-input" type="text" id="f-dateTo" placeholder="MM/DD/YYYY" maxlength="10"/>
     </div>
     <div class="filter-group">
       <div class="filter-label">Tran ID</div>
@@ -282,12 +282,8 @@ define([], () => {
               <span id="chip-count">0 PDFs</span>
             </div>
             <div class="s-chip">
-              <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/><path d="M6 3.5v3l2 1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+              <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M2 1.5h5l1.5 2H10a1 1 0 011 1v5a1 1 0 01-1 1H2a1 1 0 01-1-1v-7a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/><path d="M4 7h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
               Est. ~<span id="chip-est">0</span> KB
-            </div>
-            <div class="s-chip" id="chip-mode">
-              <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M2 3h3.5l1 1H10a1 1 0 011 1v4a1 1 0 01-1 1H2a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/></svg>
-              Folder Mode
             </div>
           </div>
         </div>
@@ -334,7 +330,7 @@ define([], () => {
               </select>
             </div>
             <div class="field-g">
-              <label>Concurrent Downloads &nbsp;<span style="color:var(--teal-mid);font-weight:700" id="concur-display">5</span></label>
+              <label>Download at a time &nbsp;<span style="color:var(--teal-mid);font-weight:700" id="concur-display">5</span></label>
               <div class="slider-wrap">
                 <span style="font-size:11px;color:var(--text-muted)">1</span>
                 <input type="range" min="1" max="10" value="5" id="f-concur"
@@ -475,7 +471,7 @@ define([], () => {
 
       <div class="modal-footer">
         <div style="font-size:12px;color:var(--text-muted)">
-          Concurrent: <strong id="concur-val" style="color:var(--teal-mid)">5</strong> · Skip errors: <strong id="skiperr-disp" style="color:var(--teal-mid)">On</strong>
+          At a time: <strong id="concur-val" style="color:var(--teal-mid)">5</strong> · Skip errors: <strong id="skiperr-disp" style="color:var(--teal-mid)">On</strong>
         </div>
       </div>
     </div><!-- /step 2 -->
@@ -529,6 +525,11 @@ define([], () => {
             <div class="dpc-lbl">Saved to</div>
             <div class="dpc-path" id="done-path">—</div>
           </div>
+        </div>
+
+        <div id="done-error-list" style="display:none;max-height:160px;overflow-y:auto;text-align:left;margin:10px 0;padding:8px 12px;border-radius:8px;background:var(--rose-bg,#fff5f5);border:1px solid var(--rose,#e53e3e);font-size:12.5px;">
+          <div style="font-weight:600;margin-bottom:6px;color:var(--rose,#e53e3e);">Failed Downloads:</div>
+          <ul id="done-error-items" style="margin:0;padding-left:18px;list-style:disc;color:var(--text-dark,#333);"></ul>
         </div>
 
         <div class="done-actions">
