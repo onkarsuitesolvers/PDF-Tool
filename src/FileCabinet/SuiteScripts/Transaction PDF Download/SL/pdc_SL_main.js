@@ -12,7 +12,7 @@
  *  (none / page)        → Serve the HTML/JS UI page       [pdc_mod_htmlBuilder]
  *  action=getInvoices   → SuiteQL invoice search → JSON    [pdc_mod_invoices]
  *  action=getCreditMemos→ SuiteQL credit memo search→JSON  [pdc_mod_creditMemos]
- *  action=getInvoiceGroups → Invoice group search → JSON   [pdc_mod_invoiceGroups]
+ *  action=getInvoiceGroups → N/search invoice group search → JSON [pdc_mod_invoiceGroups]
  *  action=getLookups    → Subsidiary + customer lists→JSON  [pdc_mod_lookups]
  *  action=getPDF        → Render one transaction PDF        [pdc_mod_pdfRenderer]
  *
