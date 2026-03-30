@@ -221,6 +221,8 @@ td { padding: 13px 14px; font-size: 14.5px; color: var(--text-primary); vertical
 td:first-child { padding-left: 20px; }
 td:last-child  { padding-right: 20px; text-align: right; }
 td:nth-child(4) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 0; }
+td:nth-child(5), td:nth-child(6) { white-space: nowrap; }
+td:nth-child(8) { white-space: nowrap; }
 
 /* ── Pagination controls ── */
 .pagination-controls {
