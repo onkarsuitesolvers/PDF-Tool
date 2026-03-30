@@ -43,11 +43,11 @@ define([], () => {
     </div>
     <div class="filter-group">
       <div class="filter-label">Date From</div>
-      <input class="filter-input" type="date" id="f-dateFrom"/>
+      <input class="filter-input" type="text" id="f-dateFrom" placeholder="MM/DD/YYYY" maxlength="10"/>
     </div>
     <div class="filter-group">
       <div class="filter-label">Date To</div>
-      <input class="filter-input" type="date" id="f-dateTo"/>
+      <input class="filter-input" type="text" id="f-dateTo" placeholder="MM/DD/YYYY" maxlength="10"/>
     </div>
     <div class="filter-group">
       <div class="filter-label">Tran ID</div>

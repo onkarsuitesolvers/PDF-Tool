@@ -290,8 +290,8 @@ async function doSearch() {
 
       var baseParams = {
         action:     typeCfg.action,
-        dateFrom:   document.getElementById('f-dateFrom').value,
-        dateTo:     document.getElementById('f-dateTo').value,
+        dateFrom:   toISODate(document.getElementById('f-dateFrom').value),
+        dateTo:     toISODate(document.getElementById('f-dateTo').value),
         customer:   msGetValues('customer').join(','),
         subsidiary: msGetValues('subsidiary').join(','),
         status:     statusForType,
@@ -558,9 +558,31 @@ function msGetValues(key) {
 
   // Populate status multiselect with all status options by default
   updateStatusOptions();
+
+  // Auto-search on first page load
+  doSearch();
 })();
 
-function fmtDate(d) { return d.toISOString().slice(0, 10); }
+function fmtDate(d) {
+  var mm = String(d.getMonth() + 1).padStart(2, '0');
+  var dd = String(d.getDate()).padStart(2, '0');
+  var yyyy = d.getFullYear();
+  return mm + '/' + dd + '/' + yyyy;
+}
+
+function fmtDisplayDate(isoStr) {
+  if (!isoStr || isoStr === '—') return '—';
+  var parts = isoStr.split('-');
+  if (parts.length !== 3) return isoStr;
+  return parts[1] + '/' + parts[2] + '/' + parts[0];
+}
+
+function toISODate(mmddyyyy) {
+  if (!mmddyyyy) return '';
+  var parts = mmddyyyy.split('/');
+  if (parts.length !== 3) return mmddyyyy;
+  return parts[2] + '-' + parts[0] + '-' + parts[1];
+}
 
 /* ─────────────────────────────────────────
    HELPERS
@@ -875,8 +897,8 @@ function renderInvoiceRow(inv) {
     <td><span class="type-label">\${escHtml(inv._typeLabel || 'Invoice')}</span></td>
     <td><span class="tran-id">\${escHtml(inv.tranId)}</span></td>
     <td>\${escHtml(inv.customer)}</td>
-    <td>\${escHtml(inv.date || '—')}</td>
-    <td>\${escHtml(inv.dueDate || '—')}</td>
+    <td>\${escHtml(fmtDisplayDate(inv.date) || '—')}</td>
+    <td>\${escHtml(fmtDisplayDate(inv.dueDate) || '—')}</td>
     <td><span class="amount">\${amt}</span></td>
     <td><span class="badge-status \${invStatusClass(inv.statusCode)}">\${escHtml(inv.status || '—')}</span></td>
     <td>
@@ -908,7 +930,7 @@ function renderCreditMemoRow(inv) {
     <td><span class="type-label">\${escHtml(inv._typeLabel || 'Credit Memo')}</span></td>
     <td><span class="tran-id" style="color:var(--rose)">\${escHtml(inv.tranId)}</span></td>
     <td>\${escHtml(inv.customer)}</td>
-    <td>\${escHtml(inv.date || '—')}</td>
+    <td>\${escHtml(fmtDisplayDate(inv.date) || '—')}</td>
     <td><span class="amount credit">\${amt}</span></td>
     <td style="color:var(--text-muted);font-size:12.5px">\${rem}</td>
     <td><span class="badge-status \${cmStatusClass(inv.statusCode)}">\${escHtml(inv.status || '—')}</span></td>
@@ -940,8 +962,8 @@ function renderInvoiceGroupRow(inv) {
     <td><span class="type-label">\${escHtml(inv._typeLabel || 'Invoice Group')}</span></td>
     <td><span class="tran-id" style="color:var(--amber)">\${escHtml(inv.tranId)}</span></td>
     <td>\${escHtml(inv.customer)}</td>
-    <td>\${escHtml(inv.date || '—')}</td>
-    <td>\${escHtml(inv.dueDate || '—')}</td>
+    <td>\${escHtml(fmtDisplayDate(inv.date) || '—')}</td>
+    <td>\${escHtml(fmtDisplayDate(inv.dueDate) || '—')}</td>
     <td><span class="amount">\${amt}</span></td>
     <td><span class="badge-status \${grpStatusClass(inv.statusCode)}">\${escHtml(inv.status || '—')}</span></td>
     <td>
@@ -1246,7 +1268,7 @@ async function resolveWriteTarget(baseHandle) {
   const wantSubfolder = document.getElementById('toggle-subfolder').classList.contains('on');
   if (!wantSubfolder || !baseHandle || baseHandle._quickPick) return baseHandle;
 
-  const dateStr = fmtDate(new Date()); // YYYY-MM-DD
+  const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   try {
     const subHandle = await baseHandle.getDirectoryHandle(dateStr, { create: true });
     return subHandle;
