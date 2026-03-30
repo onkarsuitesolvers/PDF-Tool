@@ -64,8 +64,7 @@ const PAGE_CONFIG = {
     typeLabel:   'Invoice',
     statusOptions: [
       { id: 'CustInvc:A', label: 'Invoice: Open' },
-      { id: 'CustInvc:B', label: 'Invoice: Partially Paid' },
-      { id: 'CustInvc:D', label: 'Invoice: Paid in Full' }
+      { id: 'CustInvc:B', label: 'Invoice: Paid in Full' }
     ],
     theadHTML: \`<tr>
       <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
