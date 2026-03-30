@@ -11,28 +11,13 @@
     <scriptcustomfield scriptid="custscript_pdc_invgrp_tpl_id">
       <accesslevel>2</accesslevel>
       <applyformatting>F</applyformatting>
-      <checkspelling>F</checkspelling>
-      <defaultchecked>F</defaultchecked>
-      <defaultselection></defaultselection>
       <defaultvalue>462</defaultvalue>
       <description>Internal ID of the Advanced PDF/HTML template used to render Invoice Group PDFs.</description>
-      <displayheight></displayheight>
       <displaytype>NORMAL</displaytype>
-      <displaywidth></displaywidth>
-      <dynamicdefault></dynamicdefault>
       <fieldtype>INTEGER</fieldtype>
-      <help></help>
       <isformula>F</isformula>
       <ismandatory>F</ismandatory>
       <label>Invoice Group PDF Template ID</label>
-      <linktext></linktext>
-      <maxlength></maxlength>
-      <maxvalue></maxvalue>
-      <minvalue></minvalue>
-      <onparentdelete></onparentdelete>
-      <searchlevel>2</searchlevel>
-      <selectrecordtype></selectrecordtype>
-      <setting></setting>
       <storevalue>T</storevalue>
     </scriptcustomfield>
   </scriptcustomfields>
@@ -42,7 +27,6 @@
       <allpartners>F</allpartners>
       <allroles>T</allroles>
       <audslctrole></audslctrole>
-      <custscript_pdc_invgrp_tpl_id>461</custscript_pdc_invgrp_tpl_id>
       <eventtype></eventtype>
       <isdeployed>T</isdeployed>
       <isonline>F</isonline>
@@ -50,12 +34,6 @@
       <runasrole>ADMINISTRATOR</runasrole>
       <status>RELEASED</status>
       <title>PDF Download Tool</title>
-      <links>
-        <link>
-          <linkcategory>BASICLISTSCUSTOM</linkcategory>
-          <linklabel>Bulk Download PDF&apos;s</linklabel>
-        </link>
-      </links>
     </scriptdeployment>
   </scriptdeployments>
 </suitelet>
