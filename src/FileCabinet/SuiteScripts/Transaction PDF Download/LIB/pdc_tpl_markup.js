@@ -194,6 +194,17 @@ define([], () => {
     </div>
     <div class="table-scroll">
       <table>
+        <colgroup>
+          <col style="width:44px">
+          <col style="width:90px">
+          <col style="width:120px">
+          <col>
+          <col style="width:100px">
+          <col style="width:100px">
+          <col style="width:120px">
+          <col style="width:140px">
+          <col style="width:130px">
+        </colgroup>
         <thead id="inv-thead">
           <tr>
             <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
