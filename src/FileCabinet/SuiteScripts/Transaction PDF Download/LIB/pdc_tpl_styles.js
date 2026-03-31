@@ -199,8 +199,8 @@ body::before {
 .table-meta { font-size: 13.5px; color: var(--text-muted); margin-top: 2px; }
 .table-actions { display: flex; gap: 8px; align-items: center; }
 
-.table-scroll { max-height: 520px; overflow-y: auto; }
-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.table-scroll { max-height: 520px; overflow-y: auto; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 960px; }
 thead tr { background: #F2FAFA; border-bottom: 1px solid var(--border); }
 th {
   padding: 11px 14px 10px; text-align: left;
