@@ -197,8 +197,9 @@ define([], () => {
         <colgroup>
           <col style="width:3%">
           <col style="width:5%">
+          <col style="width:2%">
           <col style="width:8%">
-          <col style="width:25%">
+          <col style="width:23%">
           <col style="width:8%">
           <col style="width:8%">
           <col style="width:10%">
@@ -209,6 +210,7 @@ define([], () => {
           <tr>
             <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
             <th>Type</th>
+            <th></th>
             <th>Tran ID</th>
             <th>Customer</th>
             <th>Date</th>
@@ -313,6 +315,10 @@ define([], () => {
               <div class="qf" onclick="event.stopPropagation(); pickQuick(this, 'Desktop')">🖥️ Desktop</div>
               <div class="qf" onclick="event.stopPropagation(); pickQuick(this, 'Documents/Invoices')">📁 Documents › Invoices</div>
             </div>
+          </div>
+          <div class="folder-note">
+            <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/><path d="M6 4.5v3M6 9v.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            Please create a new folder for downloads — this tool cannot save files to a folder where system files are present.
           </div>
         </div>
 

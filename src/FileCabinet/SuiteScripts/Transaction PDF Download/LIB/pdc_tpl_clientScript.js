@@ -69,7 +69,7 @@ const PAGE_CONFIG = {
     ],
     theadHTML: \`<tr>
       <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
-      <th>Type</th><th>Tran ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
+      <th>Type</th><th></th><th>Tran ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
       <th>Amount</th><th>Status</th><th>DL Status</th>
     </tr>\`,
     rowRendererKey: 'renderInvoiceRow',
@@ -91,7 +91,7 @@ const PAGE_CONFIG = {
     ],
     theadHTML: \`<tr>
       <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
-      <th>Type</th><th>CM Number</th><th>Customer</th><th>Date</th><th>CM Amount</th>
+      <th>Type</th><th></th><th>CM Number</th><th>Customer</th><th>Date</th><th>CM Amount</th>
       <th>Remaining</th><th>Status</th><th>DL Status</th>
     </tr>\`,
     rowRendererKey: 'renderCreditMemoRow',
@@ -115,7 +115,7 @@ const PAGE_CONFIG = {
     hideFilters: [],
     theadHTML: \`<tr>
       <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
-      <th>Type</th><th>Group ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
+      <th>Type</th><th></th><th>Group ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
       <th>Amount Due</th><th>Status</th><th>DL Status</th>
     </tr>\`,
     rowRendererKey: 'renderInvoiceGroupRow',
@@ -723,7 +723,7 @@ function renderTable(list) {
   if (isMultiType) {
     thead.innerHTML = \`<tr>
       <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
-      <th>Type</th><th>Tran ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
+      <th>Type</th><th></th><th>Tran ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
       <th>Amount</th><th>Status</th><th>DL Status</th>
     </tr>\`;
   }
@@ -896,6 +896,7 @@ function renderInvoiceRow(inv) {
   tr.innerHTML = \`
     <td class="cb-wrap"><input type="checkbox" class="row-cb" data-id="\${inv.id}" onchange="onRowCheck()"/></td>
     <td><span class="type-label">\${escHtml(inv._typeLabel || 'Invoice')}</span></td>
+    <td></td>
     <td><span class="tran-id">\${escHtml(inv.tranId)}</span></td>
     <td>\${escHtml(inv.customer)}</td>
     <td>\${escHtml(fmtDisplayDate(inv.date) || '—')}</td>
@@ -929,6 +930,7 @@ function renderCreditMemoRow(inv) {
   tr.innerHTML = \`
     <td class="cb-wrap"><input type="checkbox" class="row-cb" data-id="\${inv.id}" onchange="onRowCheck()"/></td>
     <td><span class="type-label">\${escHtml(inv._typeLabel || 'Credit Memo')}</span></td>
+    <td></td>
     <td><span class="tran-id" style="color:var(--rose)">\${escHtml(inv.tranId)}</span></td>
     <td>\${escHtml(inv.customer)}</td>
     <td>\${escHtml(fmtDisplayDate(inv.date) || '—')}</td>
@@ -961,6 +963,7 @@ function renderInvoiceGroupRow(inv) {
   tr.innerHTML = \`
     <td class="cb-wrap"><input type="checkbox" class="row-cb" data-id="\${inv.id}" onchange="onRowCheck()"/></td>
     <td><span class="type-label">\${escHtml(inv._typeLabel || 'Invoice Group')}</span></td>
+    <td></td>
     <td><span class="tran-id" style="color:var(--amber)">\${escHtml(inv.tranId)}</span></td>
     <td>\${escHtml(inv.customer)}</td>
     <td>\${escHtml(fmtDisplayDate(inv.date) || '—')}</td>
