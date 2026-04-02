@@ -812,6 +812,52 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
   display: flex; align-items: center; justify-content: center; gap: 8px;
 }
 
+/* ════════════════════════════════════
+   TOAST NOTIFICATIONS
+════════════════════════════════════ */
+.toast-container {
+  position: fixed; top: 20px; right: 20px; z-index: 700;
+  display: flex; flex-direction: column; gap: 10px;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  background: var(--card); border-radius: 14px; border-left: 4px solid var(--teal-bright);
+  padding: 14px 16px; min-width: 340px; max-width: 440px;
+  box-shadow: 0 8px 32px #0D4A4A1A, 0 2px 8px #0D4A4A10;
+  display: flex; align-items: flex-start; gap: 10px;
+  animation: toastIn 0.4s cubic-bezier(0.4,0,0.2,1) forwards;
+  font-size: 13.5px; line-height: 1.45; color: var(--text-primary);
+}
+.toast-warning { border-left-color: var(--amber); }
+.toast-warning .toast-icon { color: var(--amber); }
+.toast-error   { border-left-color: var(--rose); }
+.toast-error   .toast-icon { color: var(--rose); }
+.toast-success { border-left-color: var(--green); }
+.toast-success .toast-icon { color: var(--green); }
+.toast-info    { border-left-color: var(--teal-bright); }
+.toast-info    .toast-icon { color: var(--teal-bright); }
+
+.toast-icon { width: 20px; height: 20px; flex-shrink: 0; margin-top: 1px; }
+.toast-msg  { flex: 1; }
+.toast-close {
+  background: none; border: none; cursor: pointer; color: var(--text-muted);
+  font-size: 18px; padding: 0 0 0 8px; line-height: 1; flex-shrink: 0;
+  transition: color 0.15s;
+}
+.toast-close:hover { color: var(--text-primary); }
+
+.toast-out { animation: toastOut 0.35s cubic-bezier(0.4,0,0.2,1) forwards; }
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(40px) scale(0.96); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes toastOut {
+  from { opacity: 1; transform: translateX(0) scale(1); }
+  to   { opacity: 0; transform: translateX(40px) scale(0.96); }
+}
+
 `;
 
   return { getStyles };
