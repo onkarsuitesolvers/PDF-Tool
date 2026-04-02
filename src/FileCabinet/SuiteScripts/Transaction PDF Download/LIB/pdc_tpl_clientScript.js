@@ -26,6 +26,43 @@ const __LOOKUPS__ = {
 'use strict';
 
 /* ─────────────────────────────────────────
+   TOAST NOTIFICATIONS
+───────────────────────────────────────── */
+const TOAST_ICONS = {
+  warning: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 2L1 18h18L10 2z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M10 8v4M10 14v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  error:   '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.5"/><path d="M7 7l6 6M13 7l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  success: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.5"/><path d="M6.5 10.5l2.5 2.5 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  info:    '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 9v5M10 6.5v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'
+};
+
+function showToast(message, type, duration) {
+  if (type === undefined) type = 'info';
+  if (duration === undefined) duration = 5000;
+  var container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+  var toast = document.createElement('div');
+  toast.className = 'toast toast-' + type;
+  toast.innerHTML =
+    '<span class="toast-icon">' + (TOAST_ICONS[type] || TOAST_ICONS.info) + '</span>' +
+    '<span class="toast-msg">' + message + '</span>' +
+    '<button class="toast-close" aria-label="Close">&times;</button>';
+  container.appendChild(toast);
+  var dismiss = function () {
+    if (toast.classList.contains('toast-out')) return;
+    toast.classList.add('toast-out');
+    toast.addEventListener('animationend', function () { toast.remove(); });
+  };
+  toast.querySelector('.toast-close').addEventListener('click', dismiss);
+  if (duration > 0) setTimeout(dismiss, duration);
+  return toast;
+}
+
+/* ─────────────────────────────────────────
    CONSTANTS & STATE
 ───────────────────────────────────────── */
 const BASE_URL = '${baseUrl}';
@@ -678,7 +715,7 @@ async function previewPDF(id, tranId) {
     const blob   = new Blob([buffer], { type: 'application/pdf' });
     window.open(URL.createObjectURL(blob), '_blank');
   } catch (e) {
-    alert('Preview failed: ' + e.message);
+    showToast('Preview failed: ' + e.message, 'error');
   }
 }
 
@@ -1129,14 +1166,14 @@ function goToStep(n) {
    FOLDER PICKER  →  File System Access API
 ───────────────────────────────────────── */
 async function pickFolder() {
-  alert('Please create a new folder for downloads — this tool cannot save files to a folder where system files are present.');
+  showToast('Please create a new folder for downloads — this tool cannot save files to a folder where system files are present.', 'warning');
   try {
     dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
     applyFolderUI(dirHandle.name);
   } catch (e) {
     if (e.name === 'AbortError') return;
     if (e.name === 'SecurityError' || e.message.includes('system files')) {
-      alert('That folder cannot be opened because it contains system files.\\nPlease choose a different folder or create a new subfolder inside it.');
+      showToast('That folder cannot be opened because it contains system files.<br>Please choose a different folder or create a new subfolder inside it.', 'warning', 7000);
       try {
         dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
         applyFolderUI(dirHandle.name);
@@ -1164,7 +1201,7 @@ async function pickQuick(el, folderName) {
   } catch (e) {
     if (e.name === 'AbortError') return;
     if (e.name === 'SecurityError' || e.message.includes('system files')) {
-      alert('That folder cannot be opened because it contains system files.\\nPlease choose a subfolder or a different location.');
+      showToast('That folder cannot be opened because it contains system files.<br>Please choose a subfolder or a different location.', 'warning', 7000);
       try {
         dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
         applyFolderUI(dirHandle.name);
