@@ -35,6 +35,26 @@ const TOAST_ICONS = {
   info:    '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 9v5M10 6.5v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'
 };
 
+function showAlert(message, type) {
+  if (type === undefined) type = 'warning';
+  return new Promise(function (resolve) {
+    var overlay = document.createElement('div');
+    overlay.className = 'alert-overlay';
+    var dialog = document.createElement('div');
+    dialog.className = 'alert-dialog alert-' + type;
+    dialog.innerHTML =
+      '<span class="alert-icon">' + (TOAST_ICONS[type] || TOAST_ICONS.info) + '</span>' +
+      '<span class="alert-msg">' + message + '</span>' +
+      '<button class="alert-ok-btn">OK</button>';
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    dialog.querySelector('.alert-ok-btn').addEventListener('click', function () {
+      overlay.remove();
+      resolve();
+    });
+  });
+}
+
 function showToast(message, type, duration) {
   if (type === undefined) type = 'info';
   if (duration === undefined) duration = 5000;
@@ -1166,7 +1186,7 @@ function goToStep(n) {
    FOLDER PICKER  →  File System Access API
 ───────────────────────────────────────── */
 async function pickFolder() {
-  showToast('Please create a new folder for downloads — this tool cannot save files to a folder where system files are present.', 'warning');
+  await showAlert('Please create a new folder for downloads — this tool cannot save files to a folder where system files are present.', 'warning');
   try {
     dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
     applyFolderUI(dirHandle.name);
