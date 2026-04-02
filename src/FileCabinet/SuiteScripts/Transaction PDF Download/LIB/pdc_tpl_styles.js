@@ -484,6 +484,11 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
 }
 .qf:hover  { border-color: var(--teal-bright); color: var(--teal-mid); background: var(--teal-pale); }
 .qf.active { border-color: var(--teal-bright); color: var(--teal-mid); background: var(--teal-pale); }
+.folder-note {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 8px; font-size: 11.5px; color: var(--amber);
+  line-height: 1.4;
+}
 
 /* ── Settings grid ── */
 .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

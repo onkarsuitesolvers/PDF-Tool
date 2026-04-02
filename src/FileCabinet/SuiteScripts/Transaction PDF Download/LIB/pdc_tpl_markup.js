@@ -316,6 +316,10 @@ define([], () => {
               <div class="qf" onclick="event.stopPropagation(); pickQuick(this, 'Documents/Invoices')">📁 Documents › Invoices</div>
             </div>
           </div>
+          <div class="folder-note">
+            <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/><path d="M6 4.5v3M6 9v.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            Please create a new folder for downloads — this tool cannot save files to a folder where system files are present.
+          </div>
         </div>
 
         <!-- Download Settings -->
