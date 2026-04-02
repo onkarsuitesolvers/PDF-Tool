@@ -197,8 +197,9 @@ define([], () => {
         <colgroup>
           <col style="width:3%">
           <col style="width:5%">
+          <col style="width:2%">
           <col style="width:8%">
-          <col style="width:25%">
+          <col style="width:23%">
           <col style="width:8%">
           <col style="width:8%">
           <col style="width:10%">
@@ -209,6 +210,7 @@ define([], () => {
           <tr>
             <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
             <th>Type</th>
+            <th></th>
             <th>Tran ID</th>
             <th>Customer</th>
             <th>Date</th>
