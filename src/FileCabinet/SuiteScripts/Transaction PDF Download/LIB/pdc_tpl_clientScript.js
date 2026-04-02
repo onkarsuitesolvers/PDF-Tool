@@ -1129,6 +1129,7 @@ function goToStep(n) {
    FOLDER PICKER  →  File System Access API
 ───────────────────────────────────────── */
 async function pickFolder() {
+  alert('Please create a new folder for downloads — this tool cannot save files to a folder where system files are present.');
   try {
     dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
     applyFolderUI(dirHandle.name);
