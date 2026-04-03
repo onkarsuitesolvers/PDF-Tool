@@ -489,7 +489,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
 .qf.active { border-color: var(--teal-bright); color: var(--teal-mid); background: var(--teal-pale); }
 .folder-note {
   display: flex; align-items: center; gap: 6px;
-  margin-top: 8px; font-size: 11.5px; color: var(--amber);
+  margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--amber);
   line-height: 1.4;
 }
 
