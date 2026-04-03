@@ -205,7 +205,7 @@ thead tr { background: #F2FAFA; border-bottom: 1px solid var(--border); }
 th {
   padding: 11px 14px 10px; text-align: left;
   font-size: 12px; font-weight: 700; letter-spacing: 0.8px;
-  text-transform: uppercase; color: var(--text-muted); white-space: nowrap;
+  text-transform: uppercase; color: var(--text-muted);
   position: sticky; top: 0; background: #F2FAFA;
   border-bottom: 1px solid var(--border);
 }
@@ -279,7 +279,8 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
 .type-label {
   display: inline-block; padding: 2px 8px; border-radius: 6px;
   font-size: 11.5px; font-weight: 600; letter-spacing: 0.3px;
-  background: var(--teal-pale); color: var(--teal-mid); white-space: nowrap;
+  background: var(--teal-pale); color: var(--teal-mid);
+  word-break: break-word; overflow-wrap: break-word;
 }
 .tran-id { font-weight: 600; color: var(--teal-mid); font-size: 14.5px; }
 .cust-cell { display: flex; align-items: center; gap: 9px; }
@@ -297,6 +298,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
   display: inline-flex; align-items: center; gap: 5px;
   padding: 3px 9px; border-radius: 20px;
   font-size: 12.5px; font-weight: 600;
+  word-break: break-word; overflow-wrap: break-word;
 }
 .badge-status::before {
   content: ''; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
@@ -840,7 +842,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
 .toast-info    .toast-icon { color: var(--teal-bright); }
 
 .toast-icon { width: 20px; height: 20px; flex-shrink: 0; margin-top: 1px; }
-.toast-msg  { flex: 1; }
+.toast-msg  { flex: 1; word-break: break-word; overflow-wrap: break-word; }
 .toast-close {
   background: none; border: none; cursor: pointer; color: var(--text-muted);
   font-size: 18px; padding: 0 0 0 8px; line-height: 1; flex-shrink: 0;
@@ -886,7 +888,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
 .alert-info    .alert-icon { color: var(--teal-bright); }
 
 .alert-icon { width: 20px; height: 20px; flex-shrink: 0; }
-.alert-msg  { flex: 1; }
+.alert-msg  { flex: 1; word-break: break-word; overflow-wrap: break-word; }
 .alert-ok-btn {
   align-self: flex-end;
   background: var(--teal-bright); color: #fff; border: none; border-radius: 8px;
