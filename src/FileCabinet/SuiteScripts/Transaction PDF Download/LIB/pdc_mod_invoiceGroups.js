@@ -152,7 +152,8 @@ define(
           page.data.forEach((result, idx) => {
             const globalIdx = pi * PAGE_SIZE + idx + 1; // 1-based
             if (globalIdx >= reqRowBegin && globalIdx <= reqRowEnd) {
-              groups.push(mapResult(result));
+              var mapped = mapResult(result);
+              if (mapped.statusCode) groups.push(mapped);
             }
           });
         }
@@ -172,7 +173,10 @@ define(
             return;
           }
           const page = pagedData.fetch({ index: range.index });
-          page.data.forEach((result) => groups.push(mapResult(result)));
+          page.data.forEach((result) => {
+            var mapped = mapResult(result);
+            if (mapped.statusCode) groups.push(mapped);
+          });
         });
 
         log.debug({ title: 'PDC invoiceGroups.serve result', details: 'count=' + groups.length });
