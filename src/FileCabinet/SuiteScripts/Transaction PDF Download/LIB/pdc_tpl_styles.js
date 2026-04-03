@@ -280,7 +280,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--teal-mid
   display: inline-block; padding: 2px 8px; border-radius: 6px;
   font-size: 11.5px; font-weight: 600; letter-spacing: 0.3px;
   background: var(--teal-pale); color: var(--teal-mid);
-  word-break: break-word; overflow-wrap: break-word;
+  white-space: nowrap;
 }
 .tran-id { font-weight: 600; color: var(--teal-mid); font-size: 14.5px; }
 .cust-cell { display: flex; align-items: center; gap: 9px; }
