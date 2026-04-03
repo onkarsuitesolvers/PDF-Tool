@@ -991,8 +991,8 @@ function renderCreditMemoRow(inv) {
     <td><span class="tran-id" style="color:var(--rose)">\${escHtml(inv.tranId)}</span></td>
     <td>\${escHtml(inv.customer)}</td>
     <td>\${escHtml(fmtDisplayDate(inv.date) || '—')}</td>
+    <td>\${escHtml(fmtDisplayDate(inv.dueDate) || '—')}</td>
     <td><span class="amount credit">\${amt}</span></td>
-    <td style="color:var(--text-muted);font-size:12.5px">\${rem}</td>
     <td><span class="badge-status \${cmStatusClass(inv.statusCode)}">\${escHtml(inv.status || '—')}</span></td>
     <td>
       <div class="row-actions">
