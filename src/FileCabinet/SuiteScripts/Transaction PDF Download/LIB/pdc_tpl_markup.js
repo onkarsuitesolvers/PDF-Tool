@@ -311,7 +311,6 @@ define([], () => {
               <span class="path-change" id="path-change-btn" style="display:none" onclick="event.stopPropagation(); pickFolder()">Change</span>
             </div>
             <div class="quick-folders" id="quick-folders">
-              <div class="qf" onclick="event.stopPropagation(); pickQuick(this, 'Downloads')">⬇️ Downloads</div>
             </div>
           </div>
           <div class="folder-note">
