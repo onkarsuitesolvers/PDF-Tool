@@ -312,8 +312,6 @@ define([], () => {
             </div>
             <div class="quick-folders" id="quick-folders">
               <div class="qf" onclick="event.stopPropagation(); pickQuick(this, 'Downloads')">⬇️ Downloads</div>
-              <div class="qf" onclick="event.stopPropagation(); pickQuick(this, 'Desktop')">🖥️ Desktop</div>
-              <div class="qf" onclick="event.stopPropagation(); pickQuick(this, 'Documents/Invoices')">📁 Documents › Invoices</div>
             </div>
           </div>
           <div class="folder-note">
