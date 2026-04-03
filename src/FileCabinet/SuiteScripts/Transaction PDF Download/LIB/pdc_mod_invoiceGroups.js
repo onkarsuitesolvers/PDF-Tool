@@ -64,13 +64,14 @@ define(
       filters.push(['subsidiary', 'anyof'].concat(subIds.map(String)));
     }
 
-    // Status
-    if (p.status) {
-      const codes = p.status.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean);
-      if (codes.length) {
-        if (filters.length) filters.push('AND');
-        filters.push(['invoicegroupstatus', 'anyof'].concat(codes));
-      }
+    // Status – default to all known statuses so undefined groups are excluded
+    const ALL_STATUSES = ['OPEN', 'PAIDPART', 'PAIDFULL', 'BILLED'];
+    const codes = p.status
+      ? p.status.split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean)
+      : ALL_STATUSES;
+    if (codes.length) {
+      if (filters.length) filters.push('AND');
+      filters.push(['invoicegroupstatus', 'anyof'].concat(codes));
     }
 
     // Invoice Group Number (contains for partial match, like current LIKE behavior)
@@ -152,7 +153,8 @@ define(
           page.data.forEach((result, idx) => {
             const globalIdx = pi * PAGE_SIZE + idx + 1; // 1-based
             if (globalIdx >= reqRowBegin && globalIdx <= reqRowEnd) {
-              groups.push(mapResult(result));
+              var mapped = mapResult(result);
+              if (mapped.statusCode) groups.push(mapped);
             }
           });
         }
@@ -172,7 +174,10 @@ define(
             return;
           }
           const page = pagedData.fetch({ index: range.index });
-          page.data.forEach((result) => groups.push(mapResult(result)));
+          page.data.forEach((result) => {
+            var mapped = mapResult(result);
+            if (mapped.statusCode) groups.push(mapped);
+          });
         });
 
         log.debug({ title: 'PDC invoiceGroups.serve result', details: 'count=' + groups.length });
