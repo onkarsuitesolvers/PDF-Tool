@@ -1186,18 +1186,19 @@ function goToStep(n) {
    FOLDER PICKER  →  File System Access API
 ───────────────────────────────────────── */
 async function pickFolder() {
-  await showAlert('Please create a new folder for downloads — this tool cannot save files to a folder where system files are present.', 'warning');
   try {
     dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
     applyFolderUI(dirHandle.name);
   } catch (e) {
     if (e.name === 'AbortError') return;
-    if (e.name === 'SecurityError' || e.message.includes('system files')) {
-      showToast('That folder cannot be opened because it contains system files.<br>Please choose a different folder or create a new subfolder inside it.', 'warning', 7000);
+    if (e.name === 'SecurityError' || (e.message && e.message.includes('system files'))) {
+      showToast('The browser blocked direct access to that folder.<br>Please select or create a subfolder inside it (e.g. Downloads › Invoices).', 'warning', 7000);
       try {
         dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
         applyFolderUI(dirHandle.name);
       } catch (_) { /* user cancelled retry */ }
+    } else {
+      showToast('Could not access the selected folder. Please try a different location.', 'warning', 5000);
     }
   }
 }
@@ -1220,12 +1221,15 @@ async function pickQuick(el, folderName) {
     applyFolderUI(dirHandle.name);
   } catch (e) {
     if (e.name === 'AbortError') return;
-    if (e.name === 'SecurityError' || e.message.includes('system files')) {
-      showToast('That folder cannot be opened because it contains system files.<br>Please choose a subfolder or a different location.', 'warning', 7000);
+    if (e.name === 'SecurityError' || (e.message && e.message.includes('system files'))) {
+      showToast('The browser blocked direct access to that folder.<br>Please select or create a subfolder inside it (e.g. ' + folderName + ' › Invoices).', 'warning', 7000);
       try {
-        dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        const startIn = WELL_KNOWN_DIRS[folderName] || 'downloads';
+        dirHandle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: startIn });
         applyFolderUI(dirHandle.name);
       } catch (_) { /* user cancelled retry */ }
+    } else {
+      showToast('Could not access the selected folder. Please try a different location.', 'warning', 5000);
     }
   }
 }
