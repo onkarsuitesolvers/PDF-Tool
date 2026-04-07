@@ -196,10 +196,10 @@ define([], () => {
       <table>
         <colgroup>
           <col style="width:3%">
-          <col style="width:5%">
-          <col style="width:2%">
-          <col style="width:8%">
-          <col style="width:23%">
+          <col style="width:9%">
+          <col style="width:3%">
+          <col style="width:9%">
+          <col style="width:17%">
           <col style="width:8%">
           <col style="width:8%">
           <col style="width:10%">
