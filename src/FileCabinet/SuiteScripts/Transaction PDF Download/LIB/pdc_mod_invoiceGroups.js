@@ -87,16 +87,16 @@ define(
       filters.push(['invoicegroupnumber', 'contains', p.tranId.trim()]);
     }
 
-    // PO# (otherrefnum)
+    // PO# (ponumber — invoice groups use ponumber, not otherrefnum)
     if (p.poNum && p.poNum.trim()) {
       if (filters.length) filters.push('AND');
-      filters.push(['otherrefnum', 'contains', p.poNum.trim()]);
+      filters.push(['ponumber', 'contains', p.poNum.trim()]);
     }
 
-    // Work Authorization Number (custbody_nsts_ci_po_no)
+    // Work Authorization Number (ponumber — for invoice groups, maps to ponumber)
     if (p.workAuth && p.workAuth.trim()) {
       if (filters.length) filters.push('AND');
-      filters.push(['custbody_nsts_ci_po_no', 'contains', p.workAuth.trim()]);
+      filters.push(['ponumber', 'contains', p.workAuth.trim()]);
     }
 
     // CSV tranIds — exact match on invoicegroupnumber
@@ -104,7 +104,16 @@ define(
       const ids = p.tranIds.split(',').map(s => s.trim()).filter(Boolean);
       if (ids.length) {
         if (filters.length) filters.push('AND');
-        filters.push(['invoicegroupnumber', 'anyof'].concat(ids));
+        if (ids.length === 1) {
+          filters.push(['invoicegroupnumber', 'is', ids[0]]);
+        } else {
+          const orGroup = [];
+          ids.forEach((id, i) => {
+            if (i > 0) orGroup.push('OR');
+            orGroup.push(['invoicegroupnumber', 'is', id]);
+          });
+          filters.push(orGroup);
+        }
       }
     }
 
