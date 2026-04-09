@@ -16,11 +16,12 @@ define([], () => {
    * @param {Object[]} subsidiaries Lookup data for subsidiary multiselect
    * @returns {string} Complete <script> block content
    */
-  const getScript = (baseUrl, customers, subsidiaries) => `
+  const getScript = (baseUrl, customers, subsidiaries, departments) => `
 /* ── Server-side lookup data (embedded at render time) ── */
 const __LOOKUPS__ = {
   customers:    ${JSON.stringify(customers)},
-  subsidiaries: ${JSON.stringify(subsidiaries)}
+  subsidiaries: ${JSON.stringify(subsidiaries)},
+  departments:  ${JSON.stringify(departments)}
 };
 
 'use strict';
@@ -100,6 +101,7 @@ let failedCount   = 0;
 let failedItems   = [];
 const rowStatus   = {};
 let currentPage   = 'invoices'; // 'invoices' | 'creditmemos' | 'invoicegroups'
+let csvTranIds    = null;       // Array of tranid strings when CSV search is active
 
 /* ── Pagination state ── */
 let currentTablePage = 1;
@@ -194,9 +196,10 @@ function switchPage(pageId) {
 
   const hideFilters = cfg.hideFilters || [];
 
-  // Show/hide status and subsidiary filter groups
+  // Show/hide status, subsidiary, and department filter groups
   document.getElementById('fg-status').style.display     = hideFilters.includes('status')     ? 'none' : '';
   document.getElementById('fg-subsidiary').style.display = hideFilters.includes('subsidiary') ? 'none' : '';
+  document.getElementById('fg-department').style.display = hideFilters.includes('department') ? 'none' : '';
 
   // Table headers
   document.getElementById('inv-thead').innerHTML = cfg.theadHTML;
@@ -225,10 +228,12 @@ function onTranTypeSelectionChange() {
   const pageId = sel.length > 0 ? sel[0] : 'invoices';
   switchPage(pageId);
 
-  // When multiple types selected, show subsidiary unless ALL selected types hide it
+  // When multiple types selected, show subsidiary/department unless ALL selected types hide it
   const types = sel.length > 0 ? sel : Object.keys(PAGE_CONFIG);
-  const allHideSub = types.every(t => (PAGE_CONFIG[t].hideFilters || []).includes('subsidiary'));
-  document.getElementById('fg-subsidiary').style.display = allHideSub ? 'none' : '';
+  const allHideSub  = types.every(t => (PAGE_CONFIG[t].hideFilters || []).includes('subsidiary'));
+  const allHideDept = types.every(t => (PAGE_CONFIG[t].hideFilters || []).includes('department'));
+  document.getElementById('fg-subsidiary').style.display = allHideSub  ? 'none' : '';
+  document.getElementById('fg-department').style.display = allHideDept ? 'none' : '';
 
   updateStatusOptions();
 }
@@ -346,15 +351,23 @@ async function doSearch() {
 
       var typeLabel = typeCfg.typeLabel || typeKey;
 
-      var baseParams = {
-        action:     typeCfg.action,
-        dateFrom:   toISODate(document.getElementById('f-dateFrom').value),
-        dateTo:     toISODate(document.getElementById('f-dateTo').value),
-        customer:   msGetValues('customer').join(','),
-        subsidiary: msGetValues('subsidiary').join(','),
-        status:     statusForType,
-        tranId:     (document.getElementById('f-tranId').value || '').trim()
-      };
+      var baseParams = { action: typeCfg.action };
+
+      if (csvTranIds && csvTranIds.length > 0) {
+        // CSV mode: only search by tranid list, ignore other filters
+        baseParams.tranIds = csvTranIds.join(',');
+      } else {
+        // Normal filter mode
+        baseParams.dateFrom   = toISODate(document.getElementById('f-dateFrom').value);
+        baseParams.dateTo     = toISODate(document.getElementById('f-dateTo').value);
+        baseParams.customer   = msGetValues('customer').join(',');
+        baseParams.department = msGetValues('department').join(',');
+        baseParams.subsidiary = msGetValues('subsidiary').join(',');
+        baseParams.status     = statusForType;
+        baseParams.tranId     = (document.getElementById('f-tranId').value || '').trim();
+        baseParams.poNum      = (document.getElementById('f-poNum').value || '').trim();
+        baseParams.workAuth   = (document.getElementById('f-workAuth').value || '').trim();
+      }
 
       // Page-by-page fetch using ROWNUM (rowBegin/rowEnd)
       var rowBegin = 1;
@@ -409,9 +422,17 @@ async function doSearch() {
     // Yield to browser so the rendering message is visible before the heavy renderTable call
     await new Promise(function (resolve) { requestAnimationFrame(function () { setTimeout(resolve, 50); }); });
 
+    // Clear CSV mode after search completes
+    var wasCsv = !!csvTranIds;
+    csvTranIds = null;
+
     invoices = allInvoices;
     renderTable(invoices);
     setStats(invoices.length, 0, 0);
+
+    if (wasCsv) {
+      showToast('CSV search complete — found ' + allInvoices.length + ' transaction(s)', 'success');
+    }
 
     if (invoices.length === 0) {
       document.getElementById('table-container').classList.remove('show');
@@ -434,11 +455,74 @@ async function doSearch() {
 }
 
 /* ─────────────────────────────────────────
+   CSV UPLOAD SEARCH
+───────────────────────────────────────── */
+async function doCSVSearch() {
+  var fileInput = document.getElementById('f-csvFile');
+  if (!fileInput.files || !fileInput.files[0]) {
+    showToast('Please select a CSV file first', 'warning');
+    return;
+  }
+  try {
+    var text = await fileInput.files[0].text();
+    var lines = text.split(/\\r?\\n/).filter(function(l) { return l.trim(); });
+    var ids = [];
+    var seen = {};
+    lines.forEach(function(l) {
+      var val = l.split(',')[0].trim();
+      if (val && !seen[val]) { seen[val] = true; ids.push(val); }
+    });
+    if (ids.length === 0) {
+      showToast('No transaction IDs found in the CSV file', 'warning');
+      return;
+    }
+    document.getElementById('csv-info').textContent = ids.length + ' IDs loaded';
+    document.getElementById('csv-info').style.display = '';
+
+    // Batch into chunks of 100 to stay within URL length limits
+    var CSV_CHUNK = 100;
+    if (ids.length <= CSV_CHUNK) {
+      csvTranIds = ids;
+      await doSearch();
+    } else {
+      showSearchProgress();
+      var allResults = [];
+      for (var ci = 0; ci < ids.length; ci += CSV_CHUNK) {
+        var chunk = ids.slice(ci, ci + CSV_CHUNK);
+        csvTranIds = chunk;
+        updateSearchProgress(ci, ids.length, 'CSV batch');
+
+        // Temporarily hijack doSearch to collect results
+        var prevInvoices = invoices;
+        await doSearch();
+        allResults = allResults.concat(invoices);
+      }
+      csvTranIds = null;
+      invoices = allResults;
+      renderTable(invoices);
+      setStats(invoices.length, 0, 0);
+      if (invoices.length === 0) {
+        document.getElementById('table-container').classList.remove('show');
+        document.getElementById('empty-state').classList.add('show');
+      } else {
+        document.getElementById('empty-state').classList.remove('show');
+        document.getElementById('table-container').classList.add('show');
+      }
+      hideSearchProgress();
+      showToast('CSV search complete — found ' + allResults.length + ' transaction(s) from ' + ids.length + ' IDs', 'success');
+    }
+  } catch (e) {
+    showToast('Error reading CSV file: ' + e.message, 'error');
+  }
+}
+
+/* ─────────────────────────────────────────
    MULTISELECT WIDGET
 ───────────────────────────────────────── */
 const MS_STATE = {
   trantype:   { options: [], selected: new Set(), open: false },
   customer:   { options: [], selected: new Set(), open: false },
+  department: { options: [], selected: new Set(), open: false },
   subsidiary: { options: [], selected: new Set(), open: false },
   status:     { options: [], selected: new Set(), open: false }
 };
@@ -612,6 +696,7 @@ function msGetValues(key) {
 
   // Populate multiselect dropdowns from server-embedded data
   msSetOptions('customer',   __LOOKUPS__.customers    || []);
+  msSetOptions('department', __LOOKUPS__.departments  || []);
   msSetOptions('subsidiary', __LOOKUPS__.subsidiaries || []);
 
   // Populate status multiselect with all status options by default
@@ -677,26 +762,31 @@ function setProgress(done, total, label) {
 }
 
 function buildFilename(inv) {
-  const pat  = document.getElementById('f-filename').value;
-  const tid  = (inv.tranId   || 'doc').replace(/[^a-zA-Z0-9_\\-]/g, '_');
-  const cust = (inv.customer || 'unknown').replace(/[^a-zA-Z0-9_\\-]/g, '_').slice(0, 30);
-  const dt   = (inv.date     || '').replace(/-/g, '');
-  if (pat === 'tranid_date') return \`\${tid}_\${dt}.pdf\`;
-  if (pat === 'id_tranid')   return \`\${inv.id}_\${tid}.pdf\`;
-  if (pat === 'cust_tranid') return \`\${cust}_\${tid}.pdf\`;
-  return \`\${tid}.pdf\`;
+  const pat    = document.getElementById('f-filename').value;
+  const prefix = (document.getElementById('f-prefix').value || '').replace(/[^a-zA-Z0-9_\\-]/g, '_');
+  const tid    = (inv.tranId   || 'doc').replace(/[^a-zA-Z0-9_\\-]/g, '_');
+  const cust   = (inv.customer || 'unknown').replace(/[^a-zA-Z0-9_\\-]/g, '_').slice(0, 30);
+  const dt     = (inv.date     || '').replace(/-/g, '');
+  let name;
+  if (pat === 'tranid_date') name = \`\${tid}_\${dt}.pdf\`;
+  else if (pat === 'id_tranid') name = \`\${inv.id}_\${tid}.pdf\`;
+  else if (pat === 'cust_tranid') name = \`\${cust}_\${tid}.pdf\`;
+  else name = \`\${tid}.pdf\`;
+  return prefix ? \`\${prefix}\${name}\` : name;
 }
 
 function updatePreview() {
   const pat = document.getElementById('f-filename').value;
+  const prefix = (document.getElementById('f-prefix').value || '').replace(/[^a-zA-Z0-9_\\-]/g, '_');
   const samples = {
     'tranid':      'INV-10482.pdf',
     'tranid_date': 'INV-10482_20260301.pdf',
     'id_tranid':   '12345_INV-10482.pdf',
     'cust_tranid': 'Acme-Corp_INV-10482.pdf'
   };
+  const base = samples[pat] || 'INV-10482.pdf';
   document.getElementById('filename-preview').innerHTML =
-    \`<span>Preview:</span> \${samples[pat] || 'INV-10482.pdf'}\`;
+    \`<span>Preview:</span> \${prefix ? prefix + base : base}\`;
 }
 
 /* ─────────────────────────────────────────

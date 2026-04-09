@@ -113,6 +113,7 @@ define(
     // Pre-fetch lookup data server-side
     const subsidiaries = lookups.fetchSubsidiaries();
     const customers    = lookups.fetchCustomers();
+    const departments  = lookups.fetchDepartments();
 
     const form = serverWidget.createForm({ title: 'Print & Download Center', hideNavBar: false });
 
@@ -122,7 +123,7 @@ define(
       label: 'Content'
     });
 
-    htmlField.defaultValue = htmlBuilder.buildHTML(baseUrl, customers, subsidiaries);
+    htmlField.defaultValue = htmlBuilder.buildHTML(baseUrl, customers, subsidiaries, departments);
 
     response.writePage(form);
   };

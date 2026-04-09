@@ -54,6 +54,14 @@ define([], () => {
       <input class="filter-input" type="text" id="f-tranId" placeholder="e.g. INV-10482"/>
     </div>
     <div class="filter-group">
+      <div class="filter-label">PO#</div>
+      <input class="filter-input" type="text" id="f-poNum" placeholder="e.g. PO-12345"/>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Work Auth #</div>
+      <input class="filter-input" type="text" id="f-workAuth" placeholder="e.g. WA-001"/>
+    </div>
+    <div class="filter-group">
       <div class="filter-label">Customer</div>
       <div class="ms-wrap" id="ms-customer-wrap">
         <div class="ms-trigger" id="ms-customer-trigger" onclick="msToggle('customer')">
@@ -76,6 +84,33 @@ define([], () => {
           <div class="ms-footer">
             <span class="ms-footer-count" id="ms-customer-count">0 selected</span>
             <span class="ms-footer-clear" onclick="msClear('customer')">Clear all</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="filter-group" id="fg-department">
+      <div class="filter-label">Department</div>
+      <div class="ms-wrap" id="ms-department-wrap">
+        <div class="ms-trigger" id="ms-department-trigger" onclick="msToggle('department')">
+          <span class="ms-placeholder" id="ms-department-placeholder">All Departments</span>
+          <svg class="ms-arrow" width="10" height="7" fill="none" viewBox="0 0 10 7"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </div>
+        <div class="ms-dropdown" id="ms-department-dropdown" style="display:none;visibility:hidden">
+          <div class="ms-search-wrap">
+            <div class="ms-search-box">
+              <svg class="ms-search-icon" width="13" height="13" fill="none" viewBox="0 0 13 13"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M10 10l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <input class="ms-search" id="ms-department-search" placeholder="Search departments…" oninput="msFilter('department')" onclick="event.stopPropagation()"/>
+            </div>
+          </div>
+          <div class="ms-list" id="ms-department-list">
+            <div class="ms-loading">
+              <svg width="14" height="14" fill="none" viewBox="0 0 14 14" style="animation:spin 1s linear infinite"><circle cx="7" cy="7" r="5.5" stroke="var(--border)" stroke-width="1.5"/><path d="M7 1.5A5.5 5.5 0 0112.5 7" stroke="var(--teal-bright)" stroke-width="1.5" stroke-linecap="round"/></svg>
+              Loading…
+            </div>
+          </div>
+          <div class="ms-footer">
+            <span class="ms-footer-count" id="ms-department-count">0 selected</span>
+            <span class="ms-footer-clear" onclick="msClear('department')">Clear all</span>
           </div>
         </div>
       </div>
@@ -135,6 +170,23 @@ define([], () => {
       <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M10 10l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
       <span id="btn-search-label">Search Transactions</span>
     </button>
+  </div>
+
+  <!-- CSV Upload Section -->
+  <div class="csv-upload-bar">
+    <div class="csv-left">
+      <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><path d="M2 2h7l3 3v7a1 1 0 01-1 1H2a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.3"/><path d="M5 8h4M5 10h2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      <span class="csv-label">Or search by CSV</span>
+      <span class="csv-hint">(first column = Tran IDs, no header row)</span>
+    </div>
+    <div class="csv-controls">
+      <input type="file" id="f-csvFile" accept=".csv,.txt" class="filter-input csv-file-input"/>
+      <button type="button" class="btn btn-outline btn-sm" onclick="doCSVSearch()" id="btn-csv-search">
+        <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M6 1v8M3 6l3 3 3-3M2 10h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Upload &amp; Search
+      </button>
+      <span id="csv-info" class="csv-info" style="display:none">0 IDs loaded</span>
+    </div>
   </div>
 
   <!-- Stats row -->
@@ -331,6 +383,11 @@ define([], () => {
                 <option value="id_tranid">{ID}_{TranID}.pdf</option>
                 <option value="cust_tranid">{Customer}_{TranID}.pdf</option>
               </select>
+            </div>
+            <div class="field-g">
+              <label>Filename Prefix <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+              <input class="field-select" type="text" id="f-prefix" placeholder="e.g. ClientName_"
+                oninput="updatePreview()" maxlength="50" style="font-size:13px"/>
             </div>
             <div class="field-g">
               <label>Download at a time &nbsp;<span style="color:var(--teal-mid);font-weight:700" id="concur-display">5</span></label>

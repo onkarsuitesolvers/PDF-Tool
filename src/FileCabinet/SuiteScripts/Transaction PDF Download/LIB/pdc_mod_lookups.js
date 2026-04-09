@@ -67,18 +67,46 @@ define(
   };
 
   /**
+   * Fetch active departments sorted by name.
+   * @returns {{ id: number, label: string }[]}
+   */
+  const fetchDepartments = () => {
+    const departments = [];
+    try {
+      const sql = `
+        SELECT id, name
+        FROM department
+        WHERE isinactive = 'F'
+        ORDER BY name
+      `;
+      query.runSuiteQLPaged({ query: sql, params: [], pageSize: 1000 })
+        .iterator().each((page) => {
+          page.value.data.asMappedResults().forEach((row) => {
+            departments.push({ id: row.id, label: row.name });
+          });
+          return true;
+        });
+    } catch (e) {
+      log.error({ title: 'lookups:departments', details: e.message });
+    }
+    return departments;
+  };
+
+  /**
    * Serve the lookup data as a JSON API response (action=getLookups).
    * @param {Object} ctx  { response }
    */
   const serve = ({ response }) => {
     const subsidiaries = fetchSubsidiaries();
     const customers    = fetchCustomers();
-    qh.writeJsonResponse(response, { success: true, subsidiaries, customers });
+    const departments  = fetchDepartments();
+    qh.writeJsonResponse(response, { success: true, subsidiaries, customers, departments });
   };
 
   return {
     fetchSubsidiaries,
     fetchCustomers,
+    fetchDepartments,
     serve
   };
 });

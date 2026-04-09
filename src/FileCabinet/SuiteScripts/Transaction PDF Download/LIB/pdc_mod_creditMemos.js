@@ -36,6 +36,14 @@ define(
       conditions.push(`EXISTS (SELECT 1 FROM transactionline tl WHERE tl.transaction = t.id AND tl.subsidiary IN (${subIds.join(',')}))`);
     }
 
+    // Department filter via transactionline (same pattern as subsidiary)
+    const deptIds = qh.parseIdList(p.department);
+    if (deptIds.length === 1) {
+      conditions.push(`EXISTS (SELECT 1 FROM transactionline tl2 WHERE tl2.transaction = t.id AND tl2.department = ${deptIds[0]})`);
+    } else if (deptIds.length > 1) {
+      conditions.push(`EXISTS (SELECT 1 FROM transactionline tl2 WHERE tl2.transaction = t.id AND tl2.department IN (${deptIds.join(',')}))`);
+    }
+
     // Status filter
     if (p.status) {
       const codes = p.status.split(',').map(s => qh.toSuiteQLStatus(qh.normalizeStatusCode(decodeURIComponent(s.trim())))).filter(Boolean);

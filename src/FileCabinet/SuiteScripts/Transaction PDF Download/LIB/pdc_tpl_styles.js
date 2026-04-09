@@ -77,6 +77,23 @@ body::before {
 .page-title em { color: var(--teal-bright); font-style: italic; }
 .page-sub { font-size: 15.5px; font-weight: 600; color: var(--text-secondary); margin-top: 5px; }
 
+/* ── CSV upload bar ── */
+.csv-upload-bar {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 10px 20px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  margin-top: -4px;
+  border-top: 2px dashed var(--border);
+}
+.csv-left {
+  display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13.5px; font-weight: 600;
+}
+.csv-label { white-space: nowrap; }
+.csv-hint { font-weight: 400; color: var(--text-muted); font-size: 12px; }
+.csv-controls { display: flex; align-items: center; gap: 10px; }
+.csv-file-input { max-width: 240px; font-size: 12.5px; padding: 5px 8px; }
+.csv-info { font-size: 12px; color: var(--teal-mid); font-weight: 600; white-space: nowrap; }
+
 /* ── Stats row ── */
 .stats-row {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
