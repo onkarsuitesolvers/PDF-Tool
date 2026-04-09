@@ -74,10 +74,38 @@ define(
       filters.push(['invoicegroupstatus', 'anyof'].concat(codes));
     }
 
+    // Department
+    const deptIds = qh.parseIdList(p.department);
+    if (deptIds.length) {
+      if (filters.length) filters.push('AND');
+      filters.push(['department', 'anyof'].concat(deptIds.map(String)));
+    }
+
     // Invoice Group Number (contains for partial match, like current LIKE behavior)
     if (p.tranId && p.tranId.trim()) {
       if (filters.length) filters.push('AND');
       filters.push(['invoicegroupnumber', 'contains', p.tranId.trim()]);
+    }
+
+    // PO# (otherrefnum)
+    if (p.poNum && p.poNum.trim()) {
+      if (filters.length) filters.push('AND');
+      filters.push(['otherrefnum', 'contains', p.poNum.trim()]);
+    }
+
+    // Work Authorization Number (custbody_nsts_ci_po_no)
+    if (p.workAuth && p.workAuth.trim()) {
+      if (filters.length) filters.push('AND');
+      filters.push(['custbody_nsts_ci_po_no', 'contains', p.workAuth.trim()]);
+    }
+
+    // CSV tranIds — exact match on invoicegroupnumber
+    if (p.tranIds && p.tranIds.trim()) {
+      const ids = p.tranIds.split(',').map(s => s.trim()).filter(Boolean);
+      if (ids.length) {
+        if (filters.length) filters.push('AND');
+        filters.push(['invoicegroupnumber', 'anyof'].concat(ids));
+      }
     }
 
     return filters;

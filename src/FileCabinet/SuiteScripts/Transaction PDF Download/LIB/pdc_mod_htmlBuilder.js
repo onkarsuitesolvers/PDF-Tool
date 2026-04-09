@@ -24,9 +24,10 @@ define(
    * @param {string}   baseUrl       Suitelet base URL (for client-side fetch calls)
    * @param {Object[]} customers     Customer lookup data  [{ id, label }, …]
    * @param {Object[]} subsidiaries  Subsidiary lookup data [{ id, label }, …]
+   * @param {Object[]} departments   Department lookup data [{ id, label }, …]
    * @returns {string}  Full HTML document
    */
-  const buildHTML = (baseUrl, customers, subsidiaries) => {
+  const buildHTML = (baseUrl, customers, subsidiaries, departments) => {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -42,7 +43,7 @@ ${styles.getStyles()}
 ${markup.getMarkup()}
 
 <script>
-${clientScript.getScript(baseUrl, customers, subsidiaries)}
+${clientScript.getScript(baseUrl, customers, subsidiaries, departments)}
 </script>
 
 </body>

@@ -101,7 +101,37 @@ define(['N/log', 'N/runtime'], (log, runtime) => {
       }
     }
 
-    log.debug({ title: 'PDC queryHelper.buildCommonFilters', details: 'dateFrom=' + (p.dateFrom || '') + ' dateTo=' + (p.dateTo || '') + ' customer=' + (p.customer || '') + ' subsidiary=' + (p.subsidiary || '') + ' tranId=' + (p.tranId || '') + ' | built ' + conditions.length + ' conditions' });
+    // PO# (otherrefnum) — partial match
+    if (p.poNum && p.poNum.trim()) {
+      const po = p.poNum.trim().replace(/'/g, "''");
+      const cond = `t.otherrefnum LIKE '%${po}%'`;
+      conditions.push(cond);
+      log.debug({ title: 'PDC buildCommonFilters condition', details: 'poNum → ' + cond });
+    }
+
+    // Work Authorization Number (custbody_nsts_ci_po_no) — partial match
+    if (p.workAuth && p.workAuth.trim()) {
+      const wa = p.workAuth.trim().replace(/'/g, "''");
+      const cond = `t.custbody_nsts_ci_po_no LIKE '%${wa}%'`;
+      conditions.push(cond);
+      log.debug({ title: 'PDC buildCommonFilters condition', details: 'workAuth → ' + cond });
+    }
+
+    // CSV tranIds — exact match on multiple tranids
+    if (p.tranIds && p.tranIds.trim()) {
+      const ids = p.tranIds.split(',').map(s => s.trim().replace(/'/g, "''")).filter(Boolean);
+      if (ids.length === 1) {
+        const cond = `${tranIdCol} = '${ids[0]}'`;
+        conditions.push(cond);
+        log.debug({ title: 'PDC buildCommonFilters condition', details: 'tranIds(1) → ' + cond });
+      } else if (ids.length > 1) {
+        const cond = `${tranIdCol} IN (${ids.map(id => "'" + id + "'").join(',')})`;
+        conditions.push(cond);
+        log.debug({ title: 'PDC buildCommonFilters condition', details: 'tranIds(' + ids.length + ') → ' + cond });
+      }
+    }
+
+    log.debug({ title: 'PDC queryHelper.buildCommonFilters', details: 'dateFrom=' + (p.dateFrom || '') + ' dateTo=' + (p.dateTo || '') + ' customer=' + (p.customer || '') + ' subsidiary=' + (p.subsidiary || '') + ' tranId=' + (p.tranId || '') + ' poNum=' + (p.poNum || '') + ' workAuth=' + (p.workAuth || '') + ' tranIds=' + (p.tranIds ? '(' + p.tranIds.split(',').length + ' ids)' : '') + ' | built ' + conditions.length + ' conditions' });
 
     return { conditions, params };
   };
