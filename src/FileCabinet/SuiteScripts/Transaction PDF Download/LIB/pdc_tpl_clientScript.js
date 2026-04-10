@@ -347,7 +347,7 @@ async function doSearch() {
       if (!typeCfg) continue;
 
       var statusForType = getStatusForType(typeKey);
-      if (statusForType === null) continue;
+      if (statusForType === null && !(csvTranIds && csvTranIds.length > 0)) continue;
 
       var typeLabel = typeCfg.typeLabel || typeKey;
 
