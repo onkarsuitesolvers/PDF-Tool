@@ -153,6 +153,7 @@ define(
     log.debug({ title: 'PDC invoiceGroups.serve', details: 'p.status=' + (p.status || '(empty)') + ' | p.customer=' + (p.customer || '') + ' | p.subsidiary=' + (p.subsidiary || '') + ' | p.dateFrom=' + (p.dateFrom || '') + ' | p.dateTo=' + (p.dateTo || '') });
 
     const filters = buildFilters(p);
+    log.debug({ title: 'PDC invoiceGroups.serve filters', details: JSON.stringify(filters) });
 
     const invoiceGroupSearch = search.create({
       type: 'invoicegroup',
