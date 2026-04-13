@@ -39,24 +39,29 @@ define(
   };
 
   /**
-   * Fetch active customers sorted by label (companyname or entityid).
+   * Fetch active customers sorted by companyname (falling back to entityid).
+   * Label format: "CompanyName (EntityID)".
    * @returns {{ id: number, label: string }[]}
    */
   const fetchCustomers = () => {
     const customers = [];
     try {
       const sql = `
-        SELECT id,
-               CASE WHEN companyname IS NOT NULL AND companyname != ''
-                    THEN companyname ELSE entityid END AS label
+        SELECT id, entityid, companyname
         FROM customer
         WHERE isinactive = 'F'
-        ORDER BY label
+        ORDER BY CASE WHEN companyname IS NOT NULL AND companyname != ''
+                      THEN companyname ELSE entityid END
       `;
       query.runSuiteQLPaged({ query: sql, params: [], pageSize: 2000 })
         .iterator().each((page) => {
           page.value.data.asMappedResults().forEach((row) => {
-            customers.push({ id: row.id, label: row.label || `Customer ${row.id}` });
+            const name = row.companyname ? String(row.companyname).trim() : '';
+            const eid  = row.entityid ? String(row.entityid).trim() : '';
+            const label = name
+              ? (eid ? name + ' (' + eid + ')' : name)
+              : (eid || 'Customer ' + row.id);
+            customers.push({ id: row.id, label: label });
           });
           return true;
         });
