@@ -74,13 +74,6 @@ define(
       filters.push(['invoicegroupstatus', 'anyof'].concat(codes));
     }
 
-    // Department
-    const deptIds = qh.parseIdList(p.department);
-    if (deptIds.length) {
-      if (filters.length) filters.push('AND');
-      filters.push(['department', 'anyof'].concat(deptIds.map(String)));
-    }
-
     // Invoice Group Number (contains for partial match, like current LIKE behavior)
     if (p.tranId && p.tranId.trim()) {
       if (filters.length) filters.push('AND');
@@ -151,6 +144,29 @@ define(
   const serve = ({ request, response }) => {
     const p = request.parameters;
     log.debug({ title: 'PDC invoiceGroups.serve', details: 'p.status=' + (p.status || '(empty)') + ' | p.customer=' + (p.customer || '') + ' | p.subsidiary=' + (p.subsidiary || '') + ' | p.dateFrom=' + (p.dateFrom || '') + ' | p.dateTo=' + (p.dateTo || '') });
+
+    // Invoice groups do not have a department field — if department is the
+    // only user-applied filter, skip the search and return empty results.
+    const hasDeptFilter = !!(p.department && qh.parseIdList(p.department).length);
+    const hasNonDeptFilter = !!(
+      p.dateFrom || p.dateTo ||
+      (p.customer && qh.parseIdList(p.customer).length) ||
+      (p.subsidiary && qh.parseIdList(p.subsidiary).length) ||
+      (p.status && p.status.trim()) ||
+      (p.tranId && p.tranId.trim()) ||
+      (p.poNum && p.poNum.trim()) ||
+      (p.workAuth && p.workAuth.trim()) ||
+      (p.tranIds && p.tranIds.trim())
+    );
+
+    if (hasDeptFilter && !hasNonDeptFilter) {
+      log.debug({
+        title: 'PDC invoiceGroups.serve',
+        details: 'Department-only filter — skipping search (invoicegroup has no department field)'
+      });
+      qh.writeJsonResponse(response, { success: true, count: 0, invoices: [] });
+      return;
+    }
 
     const filters = buildFilters(p);
     log.debug({ title: 'PDC invoiceGroups.serve filters', details: JSON.stringify(filters) });
