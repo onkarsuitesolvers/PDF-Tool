@@ -22,13 +22,10 @@ define(
    * Build the complete HTML page string for the Print & Download Center.
    *
    * @param {string}   baseUrl       Suitelet base URL (for client-side fetch calls)
-   * @param {Object[]} customers     Customer lookup data  [{ id, label }, …]
-   * @param {Object[]} subsidiaries  Subsidiary lookup data [{ id, label }, …]
-   * @param {Object[]} departments   Department lookup data [{ id, label }, …]
    * @param {Object[]} folders       File Cabinet folder lookup data [{ id, label }, …]
    * @returns {string}  Full HTML document
    */
-  const buildHTML = (baseUrl, customers, subsidiaries, departments, folders) => {
+  const buildHTML = (baseUrl, folders) => {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -44,7 +41,7 @@ ${styles.getStyles()}
 ${markup.getMarkup()}
 
 <script>
-${clientScript.getScript(baseUrl, customers, subsidiaries, departments, folders)}
+${clientScript.getScript(baseUrl, folders)}
 </script>
 
 </body>

@@ -77,23 +77,6 @@ body::before {
 .page-title em { color: var(--teal-bright); font-style: italic; }
 .page-sub { font-size: 15.5px; font-weight: 600; color: var(--text-secondary); margin-top: 5px; }
 
-/* ── CSV upload bar ── */
-.csv-upload-bar {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 12px; padding: 10px 20px;
-  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-  margin-top: -4px;
-  border-top: 2px dashed var(--border);
-}
-.csv-left {
-  display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13.5px; font-weight: 600;
-}
-.csv-label { white-space: nowrap; }
-.csv-hint { font-weight: 400; color: var(--text-muted); font-size: 12px; }
-.csv-controls { display: flex; align-items: center; gap: 10px; }
-.csv-file-input { max-width: 240px; font-size: 12.5px; padding: 5px 8px; }
-.csv-info { font-size: 12px; color: var(--teal-mid); font-weight: 600; white-space: nowrap; }
-
 /* ── Stats row ── */
 .stats-row {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
@@ -122,27 +105,6 @@ body::before {
 .stat-lbl {
   font-size: 14px; color: var(--text-muted); margin-top: 3px;
   text-transform: uppercase; letter-spacing: 0.7px; font-weight: 700;
-}
-
-/* ── Mode tabs ── */
-.mode-tabs {
-  display: inline-flex; gap: 4px; padding: 4px;
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 14px; align-self: flex-start;
-  box-shadow: 0 2px 12px #0D4A4A08;
-}
-.mode-tab {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 9px 20px; border-radius: 10px; border: none;
-  background: transparent; color: var(--text-muted);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-size: 14.5px; font-weight: 700; cursor: pointer;
-  transition: all 0.18s;
-}
-.mode-tab:hover { color: var(--teal-mid); }
-.mode-tab.active {
-  background: linear-gradient(135deg, var(--teal-deep), var(--teal-mid));
-  color: var(--cream); box-shadow: 0 4px 14px #0D4A4A28;
 }
 
 /* ── Filter bar ── */
