@@ -137,6 +137,8 @@ const FILE_TYPE_OPTIONS = [
 ───────────────────────────────────────── */
 let FOLDER_TREE = { roots: [], byId: {}, order: [] };
 let folderFilterQuery = '';
+let folderCheckedCount = 0;   // running count of checked nodes — avoids O(n) rescans on every click
+let folderFilterTimer = null; // debounce handle for the filter input
 
 function buildFolderTree(flatFolders) {
   const byId = {};
@@ -188,15 +190,17 @@ function computeFolderVisibility() {
     FOLDER_TREE.roots.forEach((r) => markMatches(r, folderFilterQuery));
     FOLDER_TREE.order.forEach((node) => { node.visible = node.match || node.hasMatchDescendant; });
   } else {
+    // Single top-down pass: FOLDER_TREE.order is preorder DFS, so every parent
+    // is processed before its children. A node is visible iff its parent is
+    // both visible and expanded (roots are always visible). O(n) instead of the
+    // old O(n·depth) ancestor walk per node.
     FOLDER_TREE.order.forEach((node) => {
-      let visible = true;
-      let p = node.parentId;
-      while (p != null) {
-        const pn = FOLDER_TREE.byId[p];
-        if (!pn || !pn.expanded) { visible = false; break; }
-        p = pn.parentId;
+      if (node.parentId == null) {
+        node.visible = true;
+      } else {
+        const p = FOLDER_TREE.byId[node.parentId];
+        node.visible = !!(p && p.visible && p.expanded);
       }
-      node.visible = visible;
     });
   }
 }
@@ -214,28 +218,61 @@ function renderFolderTree() {
   computeFolderVisibility();
 
   const filterActive = !!folderFilterQuery;
-  root.innerHTML = FOLDER_TREE.order.map((node) => {
+
+  // Only visible rows are emitted into the DOM. Collapsed subtrees produce zero
+  // nodes, so a File Cabinet with tens of thousands of folders still renders
+  // just the handful currently on screen — the single biggest win for click
+  // responsiveness, since every re-render is now O(visible) not O(all folders).
+  const visibleNodes = FOLDER_TREE.order.filter((n) => n.visible);
+
+  if (visibleNodes.length === 0) {
+    root.innerHTML = '<div class="tree-empty">No folders match your filter</div>';
+    updateFolderSelectedSummary();
+    return;
+  }
+
+  root.innerHTML = visibleNodes.map((node) => {
     const hasChildren  = node.children.length > 0;
     const effExpanded  = filterActive ? !!node.hasMatchDescendant : node.expanded;
     const toggleClass  = hasChildren ? ('tree-toggle' + (effExpanded ? ' tree-expanded' : '')) : 'tree-toggle tree-toggle-empty';
     const rowClass     = 'tree-row' + (filterActive && node.match ? ' tree-match' : '');
     const indent       = 6 + node.depth * 18;
 
-    return '<div class="' + rowClass + '" id="tree-row-' + node.id + '" style="display:' + (node.visible ? 'flex' : 'none') + ';padding-left:' + indent + 'px">'
+    return '<div class="' + rowClass + '" id="tree-row-' + node.id + '" style="padding-left:' + indent + 'px">'
       + '<span class="' + toggleClass + '" onclick="toggleFolderExpand(\\'' + node.id + '\\')">'
       + (hasChildren ? '<svg width="9" height="9" viewBox="0 0 9 9" fill="none"><path d="M2 1l4 3.5L2 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '')
       + '</span>'
-      + '<input type="checkbox" class="tree-checkbox" id="tree-cb-' + node.id + '" onclick="onFolderCheckboxClick(\\'' + node.id + '\\')" ' + (node.checked ? 'checked' : '') + '/>'
+      + '<input type="checkbox" class="tree-checkbox" id="tree-cb-' + node.id + '" data-id="' + node.id + '" onclick="onFolderCheckboxClick(\\'' + node.id + '\\')" ' + (node.checked ? 'checked' : '') + '/>'
       + '<span class="tree-folder-icon">📁</span>'
       + '<span class="tree-label" title="' + escHtml(node.name) + '" onclick="onFolderCheckboxClick(\\'' + node.id + '\\')">' + escHtml(node.name) + '</span>'
       + '</div>';
   }).join('');
 
-  FOLDER_TREE.order.forEach((node) => {
+  // indeterminate is a DOM-only property (no HTML attribute), so it must be set
+  // after insertion — but only for the rows we actually rendered.
+  visibleNodes.forEach((node) => {
     const cb = document.getElementById('tree-cb-' + node.id);
     if (cb) cb.indeterminate = !!node.indeterminate && !node.checked;
   });
 
+  updateFolderSelectedSummary();
+}
+
+/* Update only the checked/indeterminate state of the rows currently on screen,
+   without rebuilding the tree. Checking a box changes the model (descendants +
+   ancestors) but never changes which rows are visible, so a full re-render is
+   wasted work — this touches just the rendered <input>s. */
+function patchFolderChecks() {
+  const root = document.getElementById('folder-tree-root');
+  if (!root) return;
+  const cbs = root.querySelectorAll('.tree-checkbox');
+  for (let i = 0; i < cbs.length; i++) {
+    const cb = cbs[i];
+    const node = FOLDER_TREE.byId[cb.getAttribute('data-id')];
+    if (!node) continue;
+    cb.checked = node.checked;
+    cb.indeterminate = !!node.indeterminate && !node.checked;
+  }
   updateFolderSelectedSummary();
 }
 
@@ -247,12 +284,24 @@ function toggleFolderExpand(id) {
 }
 
 function onFolderFilterInput(val) {
-  folderFilterQuery = (val || '').trim().toLowerCase();
-  renderFolderTree();
+  // Debounce: a large tree's filter pass (match marking + re-render) is O(n),
+  // so running it on every keystroke stutters. Coalesce rapid typing into one
+  // render ~140ms after the user pauses.
+  const raw = (val || '').trim().toLowerCase();
+  if (folderFilterTimer) clearTimeout(folderFilterTimer);
+  folderFilterTimer = setTimeout(() => {
+    folderFilterTimer = null;
+    if (raw === folderFilterQuery) return;
+    folderFilterQuery = raw;
+    renderFolderTree();
+  }, 140);
 }
 
 function setFolderNodeChecked(node, checked) {
-  node.checked = checked;
+  if (node.checked !== checked) {
+    node.checked = checked;
+    folderCheckedCount += checked ? 1 : -1;
+  }
   node.indeterminate = false;
   node.children.forEach((c) => setFolderNodeChecked(c, checked));
 }
@@ -262,6 +311,7 @@ function updateFolderAncestors(node) {
   while (p) {
     const allChecked = p.children.every((c) => c.checked);
     const noneChecked = p.children.every((c) => !c.checked && !c.indeterminate);
+    if (p.checked !== allChecked) folderCheckedCount += allChecked ? 1 : -1;
     p.checked = allChecked;
     p.indeterminate = !allChecked && !noneChecked;
     p = p.parentId != null ? FOLDER_TREE.byId[p.parentId] : null;
@@ -274,17 +324,17 @@ function onFolderCheckboxClick(id) {
   const newChecked = !node.checked;
   setFolderNodeChecked(node, newChecked);
   updateFolderAncestors(node);
-  renderFolderTree();
+  patchFolderChecks(); // visibility is unchanged — patch in place, don't rebuild
 }
 
 function folderSelectAll() {
   FOLDER_TREE.roots.forEach((r) => setFolderNodeChecked(r, true));
-  renderFolderTree();
+  patchFolderChecks();
 }
 
 function folderClearAll() {
   FOLDER_TREE.roots.forEach((r) => setFolderNodeChecked(r, false));
-  renderFolderTree();
+  patchFolderChecks();
 }
 
 function getSelectedFolderIds() {
@@ -294,7 +344,7 @@ function getSelectedFolderIds() {
 function updateFolderSelectedSummary() {
   const el = document.getElementById('folder-selected-summary');
   if (!el) return;
-  const n = getSelectedFolderIds().length;
+  const n = folderCheckedCount; // maintained incrementally — no O(n) rescan per click
   el.textContent = n === 0 ? '0 folders selected' : (n + ' folder' + (n !== 1 ? 's' : '') + ' selected');
 }
 
@@ -615,6 +665,7 @@ function msGetValues(key) {
 
   const folders = await fetchFolderLookups();
   FOLDER_TREE = buildFolderTree(folders);
+  folderCheckedCount = 0; // fresh tree — every node starts unchecked
   renderFolderTree();
 
   msSetOptions('filetype', FILE_TYPE_OPTIONS);
