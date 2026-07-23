@@ -13,12 +13,17 @@ and stream files.
 
 ## What you can do with it
 
-- **Search File Cabinet files** by one or more folders, file type, and
-  date-created range.
+- **Browse and multi-select folders** in an expandable/collapsible folder
+  tree (tri-state checkboxes — checking a folder selects all of its
+  subfolders too), then narrow by file type and date-created range.
+- **Search only runs when you ask for it** — picking folders or filters
+  never fires a search on its own; nothing loads until you click
+  **Search Files**.
 - **Preview a single file** in the browser, or **bulk-download** every
   matching file.
-- **Use a folder lookup** that ships pre-loaded with the page (no extra
-  round-trip on first load).
+- **Folder tree ships pre-loaded** with the page (no extra round-trip on
+  first load) and rebuilds the hierarchy client-side from a flat
+  id/parent list.
 
 ---
 
@@ -108,9 +113,16 @@ Suitelet renders the HTML UI page.
 1. Open the deployment URL — easiest route is **Customization →
    Scripting → Script Deployments**, find *PDF Download Tool*, and click
    the link, or use the External URL if "Available Without Login" is on.
-2. Pick one or more **Folders** to search.
-3. Optionally narrow by **File Type** and **Date Created** range.
-4. Hit **Search Files**. Results render in the table along with totals.
+2. In the **Folders** panel on the left, check one or more folders in the
+   tree. Checking a folder auto-selects its subfolders; use the arrow to
+   expand/collapse a branch, and the filter box above the tree to jump to
+   a folder by name (typing there only filters what's visible — it does
+   not run a search). "Select all" / "Clear" affect the whole tree.
+3. Optionally narrow by **File Type** and **Date Created** range in the
+   filter bar.
+4. Hit **Search Files**. This is the only thing that triggers a search —
+   folder/file-type/date changes are just selections until you click it.
+   Results render in the table along with totals.
 5. From the result list:
    - Click a row to **preview** the file inline.
    - Use the bulk action to **download every matching file**.
@@ -215,7 +227,7 @@ parameter. Base URL pattern:
 | Action              | Method | Returns          | Notable params                                                                                          |
 | ------------------- | ------ | ---------------- | ------------------------------------------------------------------------------------------------------- |
 | *(none)* / `page`   | GET    | HTML page        | —                                                                                                       |
-| `getLookups`        | GET    | JSON             | Returns folders                                                                                          |
+| `getLookups`        | GET    | JSON             | Returns folders as a flat list `{ id, name, parentId }[]`; the client rebuilds the tree                  |
 | `getFiles`          | GET    | JSON             | `folder` (required, comma-separated IDs), `fileType`, `createdFrom`, `createdTo`, `rowBegin`, `rowEnd`  |
 | `getFile`           | GET    | binary           | `id` (internal ID, required)                                                                             |
 
@@ -248,8 +260,9 @@ Logs are written via `N/log` at `DEBUG` level — open the deployment's
 
 | Symptom                                              | Likely cause / fix                                                                                  |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Page loads but folder dropdown is empty              | The folder lookup fetch failed — check execution log for `lookups:folders` errors; usually a permission issue. |
-| Search returns nothing                                | Confirm at least one folder is selected — the server requires it and returns an empty list otherwise. |
+| Page loads but folder tree is empty                   | The folder lookup fetch failed — check execution log for `lookups:folders` errors; usually a permission issue. |
+| Search button warns "select at least one folder"      | Confirm at least one checkbox is checked in the folder tree — the server requires it and returns an empty list otherwise. |
+| Clicking Search Files does nothing                    | Check that a folder is actually checked (not just expanded) — expanding a branch or typing in the tree's filter box doesn't select anything by itself. |
 | Bulk download stalls                                  | Each file is a separate request; check the browser console for failed `action=getFile` calls and the server execution log for the matching IDs. |
 
 ---
