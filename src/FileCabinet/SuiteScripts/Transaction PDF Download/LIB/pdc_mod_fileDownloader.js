@@ -4,9 +4,7 @@
  *
  * ─────────────────────────────────────────────────────────────────────────────
  *  PDC — File Cabinet File Downloader (action=getFile)
- *  Streams a single File Cabinet file back as its original binary content,
- *  used by Folder-mode downloads (as opposed to action=getPDF which renders
- *  transaction PDFs).
+ *  Streams a single File Cabinet file back as its original binary content.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 define(

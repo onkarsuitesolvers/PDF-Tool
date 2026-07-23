@@ -17,175 +17,8 @@ define([], () => {
 ════════════════════════════════════════ -->
 <main class="main">
 
-  <!-- Mode toggle: Transactions vs Folder -->
-  <div class="mode-tabs">
-    <button type="button" class="mode-tab active" id="mode-tab-transactions" onclick="switchMode('transactions')">
-      <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><path d="M2 2h7l3 3v7a1 1 0 01-1 1H2a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.3"/><path d="M5 8h4M5 10h2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-      Transactions
-    </button>
-    <button type="button" class="mode-tab" id="mode-tab-folder" onclick="switchMode('folder')">
-      <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><path d="M1.5 3.5h4L7 5h5.5v6h-11z" stroke="currentColor" stroke-width="1.3"/></svg>
-      Folder
-    </button>
-  </div>
-
-  <!-- Filter bar: Transactions mode -->
-  <div class="filter-bar" id="filter-bar-transactions">
-    <div class="filter-group" id="fg-trantype">
-      <div class="filter-label">Transaction Type</div>
-      <div class="ms-wrap" id="ms-trantype-wrap">
-        <div class="ms-trigger" id="ms-trantype-trigger" onclick="msToggle('trantype')">
-          <span class="ms-placeholder" id="ms-trantype-placeholder">All Transaction Types</span>
-          <svg class="ms-arrow" width="10" height="7" fill="none" viewBox="0 0 10 7"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-        </div>
-        <div class="ms-dropdown" id="ms-trantype-dropdown" style="display:none;visibility:hidden">
-          <div class="ms-search-wrap">
-            <div class="ms-search-box">
-              <svg class="ms-search-icon" width="13" height="13" fill="none" viewBox="0 0 13 13"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M10 10l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-              <input class="ms-search" id="ms-trantype-search" placeholder="Search types…" oninput="msFilter('trantype')" onclick="event.stopPropagation()"/>
-            </div>
-          </div>
-          <div class="ms-list" id="ms-trantype-list"></div>
-          <div class="ms-footer">
-            <span class="ms-footer-count" id="ms-trantype-count">0 selected</span>
-            <span class="ms-footer-clear" onclick="msClear('trantype')">Clear all</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="filter-group">
-      <div class="filter-label">Date From</div>
-      <input class="filter-input" type="text" id="f-dateFrom" placeholder="MM/DD/YYYY" maxlength="10"/>
-    </div>
-    <div class="filter-group">
-      <div class="filter-label">Date To</div>
-      <input class="filter-input" type="text" id="f-dateTo" placeholder="MM/DD/YYYY" maxlength="10"/>
-    </div>
-    <div class="filter-group">
-      <div class="filter-label">Tran ID</div>
-      <input class="filter-input" type="text" id="f-tranId" placeholder="e.g. INV-10482"/>
-    </div>
-    <div class="filter-group">
-      <div class="filter-label">PO#</div>
-      <input class="filter-input" type="text" id="f-poNum" placeholder="e.g. PO-12345"/>
-    </div>
-    <div class="filter-group">
-      <div class="filter-label">Work Auth #</div>
-      <input class="filter-input" type="text" id="f-workAuth" placeholder="e.g. WA-001"/>
-    </div>
-    <div class="filter-group">
-      <div class="filter-label">Customer</div>
-      <div class="ms-wrap" id="ms-customer-wrap">
-        <div class="ms-trigger" id="ms-customer-trigger" onclick="msToggle('customer')">
-          <span class="ms-placeholder" id="ms-customer-placeholder">All Customers</span>
-          <svg class="ms-arrow" width="10" height="7" fill="none" viewBox="0 0 10 7"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-        </div>
-        <div class="ms-dropdown" id="ms-customer-dropdown" style="display:none;visibility:hidden">
-          <div class="ms-search-wrap">
-            <div class="ms-search-box">
-              <svg class="ms-search-icon" width="13" height="13" fill="none" viewBox="0 0 13 13"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M10 10l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-              <input class="ms-search" id="ms-customer-search" placeholder="Search customers…" oninput="msFilter('customer')" onclick="event.stopPropagation()"/>
-            </div>
-          </div>
-          <div class="ms-list" id="ms-customer-list">
-            <div class="ms-loading">
-              <svg width="14" height="14" fill="none" viewBox="0 0 14 14" style="animation:spin 1s linear infinite"><circle cx="7" cy="7" r="5.5" stroke="var(--border)" stroke-width="1.5"/><path d="M7 1.5A5.5 5.5 0 0112.5 7" stroke="var(--teal-bright)" stroke-width="1.5" stroke-linecap="round"/></svg>
-              Loading…
-            </div>
-          </div>
-          <div class="ms-footer">
-            <span class="ms-footer-count" id="ms-customer-count">0 selected</span>
-            <span class="ms-footer-clear" onclick="msClear('customer')">Clear all</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="filter-group" id="fg-department">
-      <div class="filter-label">Department</div>
-      <div class="ms-wrap" id="ms-department-wrap">
-        <div class="ms-trigger" id="ms-department-trigger" onclick="msToggle('department')">
-          <span class="ms-placeholder" id="ms-department-placeholder">All Departments</span>
-          <svg class="ms-arrow" width="10" height="7" fill="none" viewBox="0 0 10 7"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-        </div>
-        <div class="ms-dropdown" id="ms-department-dropdown" style="display:none;visibility:hidden">
-          <div class="ms-search-wrap">
-            <div class="ms-search-box">
-              <svg class="ms-search-icon" width="13" height="13" fill="none" viewBox="0 0 13 13"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M10 10l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-              <input class="ms-search" id="ms-department-search" placeholder="Search departments…" oninput="msFilter('department')" onclick="event.stopPropagation()"/>
-            </div>
-          </div>
-          <div class="ms-list" id="ms-department-list">
-            <div class="ms-loading">
-              <svg width="14" height="14" fill="none" viewBox="0 0 14 14" style="animation:spin 1s linear infinite"><circle cx="7" cy="7" r="5.5" stroke="var(--border)" stroke-width="1.5"/><path d="M7 1.5A5.5 5.5 0 0112.5 7" stroke="var(--teal-bright)" stroke-width="1.5" stroke-linecap="round"/></svg>
-              Loading…
-            </div>
-          </div>
-          <div class="ms-footer">
-            <span class="ms-footer-count" id="ms-department-count">0 selected</span>
-            <span class="ms-footer-clear" onclick="msClear('department')">Clear all</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="filter-group" id="fg-subsidiary">
-      <div class="filter-label">Subsidiary</div>
-      <div class="ms-wrap" id="ms-subsidiary-wrap">
-        <div class="ms-trigger" id="ms-subsidiary-trigger" onclick="msToggle('subsidiary')">
-          <span class="ms-placeholder" id="ms-subsidiary-placeholder">All Subsidiaries</span>
-          <svg class="ms-arrow" width="10" height="7" fill="none" viewBox="0 0 10 7"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-        </div>
-        <div class="ms-dropdown" id="ms-subsidiary-dropdown" style="display:none;visibility:hidden">
-          <div class="ms-search-wrap">
-            <div class="ms-search-box">
-              <svg class="ms-search-icon" width="13" height="13" fill="none" viewBox="0 0 13 13"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M10 10l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-              <input class="ms-search" id="ms-subsidiary-search" placeholder="Search subsidiaries…" oninput="msFilter('subsidiary')" onclick="event.stopPropagation()"/>
-            </div>
-          </div>
-          <div class="ms-list" id="ms-subsidiary-list">
-            <div class="ms-loading">
-              <svg width="14" height="14" fill="none" viewBox="0 0 14 14" style="animation:spin 1s linear infinite"><circle cx="7" cy="7" r="5.5" stroke="var(--border)" stroke-width="1.5"/><path d="M7 1.5A5.5 5.5 0 0112.5 7" stroke="var(--teal-bright)" stroke-width="1.5" stroke-linecap="round"/></svg>
-              Loading…
-            </div>
-          </div>
-          <div class="ms-footer">
-            <span class="ms-footer-count" id="ms-subsidiary-count">0 selected</span>
-            <span class="ms-footer-clear" onclick="msClear('subsidiary')">Clear all</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="filter-group" id="fg-status">
-      <div class="filter-label">Status</div>
-      <div class="ms-wrap" id="ms-status-wrap">
-        <div class="ms-trigger" id="ms-status-trigger" onclick="msToggle('status')">
-          <span class="ms-placeholder" id="ms-status-placeholder">All Statuses</span>
-          <svg class="ms-arrow" width="10" height="7" fill="none" viewBox="0 0 10 7"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-        </div>
-        <div class="ms-dropdown" id="ms-status-dropdown" style="display:none;visibility:hidden">
-          <div class="ms-search-wrap">
-            <div class="ms-search-box">
-              <svg class="ms-search-icon" width="13" height="13" fill="none" viewBox="0 0 13 13"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M10 10l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-              <input class="ms-search" id="ms-status-search" placeholder="Search statuses…" oninput="msFilter('status')" onclick="event.stopPropagation()"/>
-            </div>
-          </div>
-          <div class="ms-list" id="ms-status-list">
-          </div>
-          <div class="ms-footer">
-            <span class="ms-footer-count" id="ms-status-count">0 selected</span>
-            <span class="ms-footer-clear" onclick="msClear('status')">Clear all</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="filter-divider"></div>
-    <button type="button" class="btn btn-primary" onclick="runSearch()" id="btn-search" style="align-self:flex-end">
-      <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M10 10l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-      <span id="btn-search-label">Search Transactions</span>
-    </button>
-  </div>
-
-  <!-- Filter bar: Folder mode -->
-  <div class="filter-bar" id="filter-bar-folder" style="display:none">
+  <!-- Filter bar: Folder search -->
+  <div class="filter-bar" id="filter-bar-folder">
     <div class="filter-group" id="fg-folder">
       <div class="filter-label">Folders</div>
       <div class="ms-wrap" id="ms-folder-wrap">
@@ -244,27 +77,10 @@ define([], () => {
       <input class="filter-input" type="text" id="f-createdTo" placeholder="MM/DD/YYYY" maxlength="10"/>
     </div>
     <div class="filter-divider"></div>
-    <button type="button" class="btn btn-primary" onclick="runSearch()" id="btn-search-folder" style="align-self:flex-end">
+    <button type="button" class="btn btn-primary" onclick="runSearch()" id="btn-search" style="align-self:flex-end">
       <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M10 10l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-      <span id="btn-search-folder-label">Search Files</span>
+      <span id="btn-search-label">Search Files</span>
     </button>
-  </div>
-
-  <!-- CSV Upload Section (Transactions mode only) -->
-  <div class="csv-upload-bar" id="csv-upload-bar">
-    <div class="csv-left">
-      <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><path d="M2 2h7l3 3v7a1 1 0 01-1 1H2a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.3"/><path d="M5 8h4M5 10h2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-      <span class="csv-label">Or search by CSV</span>
-      <span class="csv-hint">(first column = Tran IDs, no header row)</span>
-    </div>
-    <div class="csv-controls">
-      <input type="file" id="f-csvFile" accept=".csv,.txt" class="filter-input csv-file-input"/>
-      <button type="button" class="btn btn-outline btn-sm" onclick="doCSVSearch()" id="btn-csv-search">
-        <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M6 1v8M3 6l3 3 3-3M2 10h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Upload &amp; Search
-      </button>
-      <span id="csv-info" class="csv-info" style="display:none">0 IDs loaded</span>
-    </div>
   </div>
 
   <!-- Stats row -->
@@ -312,7 +128,7 @@ define([], () => {
     <div class="table-head">
       <div>
         <div class="table-title" id="table-title">Search Results</div>
-        <div class="table-meta" id="table-meta">0 transactions</div>
+        <div class="table-meta" id="table-meta">0 files</div>
       </div>
       <div class="table-actions">
         <button type="button" class="btn btn-outline btn-sm" onclick="toggleSelectAll()">Select All</button>
@@ -325,28 +141,22 @@ define([], () => {
     <div class="table-scroll">
       <table>
         <colgroup id="inv-colgroup">
-          <col style="width:3%">
-          <col style="width:9%">
-          <col style="width:3%">
-          <col style="width:9%">
-          <col style="width:17%">
-          <col style="width:8%">
-          <col style="width:8%">
+          <col style="width:4%">
+          <col style="width:26%">
+          <col style="width:20%">
+          <col style="width:12%">
           <col style="width:10%">
           <col style="width:13%">
-          <col style="width:10%">
+          <col style="width:15%">
         </colgroup>
         <thead id="inv-thead">
           <tr>
             <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
-            <th>Type</th>
-            <th></th>
-            <th>Tran ID</th>
-            <th>Customer</th>
-            <th>Date</th>
-            <th>Due Date</th>
-            <th>Amount</th>
-            <th>Status</th>
+            <th>Name</th>
+            <th>Folder</th>
+            <th>File Type</th>
+            <th>Size</th>
+            <th>Date Created</th>
             <th>DL Status</th>
           </tr>
         </thead>
@@ -358,18 +168,14 @@ define([], () => {
 
   <!-- Empty state -->
   <div class="empty-state" id="empty-state">
-    <div class="empty-icon" id="empty-icon">🔎</div>
-    <div class="empty-text" id="empty-text">No Transactions found</div>
-    <div class="empty-sub" id="empty-sub">Try adjusting your filters</div>
+    <div class="empty-icon" id="empty-icon">📁</div>
+    <div class="empty-text" id="empty-text">No files found</div>
+    <div class="empty-sub" id="empty-sub">Select one or more folders and search</div>
   </div>
 
 
 </main>
 
-
-<!-- ════════════════════════════════════════
-     TOOL PAGES  (shown/hidden by switchPage)
-════════════════════════════════════════ -->
 
 <!-- ════════════════════════════════════════
      DOWNLOAD MODAL
@@ -389,7 +195,7 @@ define([], () => {
           </div>
           <div>
             <div class="modal-title">Choose <em>Save Location</em></div>
-            <div class="modal-sub" id="step1-sub">Select where PDFs will be saved on your machine</div>
+            <div class="modal-sub" id="step1-sub">Select where files will be saved on your machine</div>
           </div>
         </div>
         <button type="button" class="close-modal" onclick="closeModal()">✕</button>
@@ -411,7 +217,7 @@ define([], () => {
           <div class="summary-chips" id="summary-chips">
             <div class="s-chip hi">
               <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M2 2h8l1 1v7a1 1 0 01-1 1H2a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/></svg>
-              <span id="chip-count">0 PDFs</span>
+              <span id="chip-count">0 Files</span>
             </div>
             <div class="s-chip">
               <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M2 1.5h5l1.5 2H10a1 1 0 011 1v5a1 1 0 01-1 1H2a1 1 0 01-1-1v-7a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/><path d="M4 7h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
@@ -453,19 +259,10 @@ define([], () => {
         <div>
           <div class="sec-label">Download Settings</div>
           <div class="settings-grid">
-            <div class="field-g" id="filename-pattern-group">
-              <label>Filename Pattern</label>
-              <select class="field-select" id="f-filename" onchange="updatePreview()">
-                <option value="tranid">{TranID}.pdf</option>
-                <option value="tranid_date">{TranID}_{Date}.pdf</option>
-                <option value="id_tranid">{ID}_{TranID}.pdf</option>
-                <option value="cust_tranid">{Customer}_{TranID}.pdf</option>
-              </select>
-            </div>
             <div class="field-g">
               <label>Filename Prefix <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
               <input class="field-select" type="text" id="f-prefix" placeholder="e.g. ClientName_"
-                oninput="updatePreview()" maxlength="50" style="font-size:13px"/>
+                maxlength="50" style="font-size:13px"/>
             </div>
             <div class="field-g">
               <label>Download at a time &nbsp;<span style="color:var(--teal-mid);font-weight:700" id="concur-display">5</span></label>
@@ -476,9 +273,6 @@ define([], () => {
                 <span style="font-size:11px;color:var(--text-muted)">10</span>
               </div>
             </div>
-            <div class="preview-row" id="filename-preview">
-              <span>Preview:</span> INV-10482.pdf
-            </div>
           </div>
         </div>
 
@@ -488,8 +282,8 @@ define([], () => {
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px 14px;">
             <div class="toggle-row">
               <div>
-                <div class="tl-label" id="skiperr-label">Skip failed PDFs</div>
-                <div class="tl-sub" id="skiperr-sub">Continue downloading even if one invoice fails</div>
+                <div class="tl-label">Skip failed files</div>
+                <div class="tl-sub">Continue downloading even if one file fails</div>
               </div>
               <input type="checkbox" id="f-skiperr" checked style="width:15px;height:15px;accent-color:var(--teal-mid);cursor:pointer"/>
             </div>
@@ -526,8 +320,8 @@ define([], () => {
             <svg width="22" height="22" fill="none" viewBox="0 0 22 22"><path d="M11 3v12M7 11l4 4 4-4M4 19h14" stroke="#2E9E9E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
           <div>
-            <div class="modal-title">Downloading <em>PDFs</em></div>
-            <div class="modal-sub" id="step2-sub">Generating and saving files…</div>
+            <div class="modal-title">Downloading <em>Files</em></div>
+            <div class="modal-sub" id="step2-sub">Saving files…</div>
           </div>
         </div>
         <div style="font-size:11.5px;font-weight:600;color:var(--text-muted);">Do not close this window</div>
@@ -547,8 +341,8 @@ define([], () => {
         <div class="dl-hero">
           <div class="dl-hero-top">
             <div>
-              <div class="dl-hero-title">Generating &amp; Downloading PDFs</div>
-              <div class="dl-hero-sub" id="dl-hero-sub">BFO renderer · NetSuite Suitelet</div>
+              <div class="dl-hero-title">Downloading Files</div>
+              <div class="dl-hero-sub" id="dl-hero-sub">NetSuite File Cabinet · Suitelet</div>
             </div>
             <div class="dl-status-pill" id="dl-status-pill">
               <div class="pulse" id="dl-pulse"></div>

@@ -6,8 +6,7 @@
  *  PDC — File Cabinet File List (action=getFiles)
  *  Uses N/search (saved-search API) against the file record type to list
  *  File Cabinet files filtered by folder, file type and date-created range.
- *  Pagination is handled via search.runPaged() with a 1000-row page size,
- *  mirroring pdc_mod_invoiceGroups.js.
+ *  Pagination is handled via search.runPaged() with a 1000-row page size.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 define(

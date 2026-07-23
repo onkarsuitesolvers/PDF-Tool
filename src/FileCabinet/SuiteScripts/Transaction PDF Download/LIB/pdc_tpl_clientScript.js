@@ -3,28 +3,22 @@
  * @NModuleScope SameAccount
  *
  * PDC — Client-Side JavaScript Template
- * All browser-side logic: search, multiselect, modal, download orchestrator,
- * File System Access API, concurrency limiter, row renderers, etc.
+ * All browser-side logic: folder/file search, multiselect, modal, download
+ * orchestrator, File System Access API, concurrency limiter, row renderer, etc.
  *
- * Server-injected values: baseUrl, customers, subsidiaries
+ * Server-injected values: baseUrl, folders
  */
 define([], () => {
 
   /**
-   * @param {string} baseUrl       Suitelet base URL
-   * @param {Object[]} customers   Lookup data for customer multiselect
-   * @param {Object[]} subsidiaries Lookup data for subsidiary multiselect
-   * @param {Object[]} departments Lookup data for department multiselect
-   * @param {Object[]} folders     Lookup data for File Cabinet folder multiselect (Folder mode)
+   * @param {string} baseUrl    Suitelet base URL
+   * @param {Object[]} folders  Lookup data for File Cabinet folder multiselect
    * @returns {string} Complete <script> block content
    */
-  const getScript = (baseUrl, customers, subsidiaries, departments, folders) => `
+  const getScript = (baseUrl, folders) => `
 /* ── Server-side lookup data (embedded at render time) ── */
 const __LOOKUPS__ = {
-  customers:    ${JSON.stringify(customers)},
-  subsidiaries: ${JSON.stringify(subsidiaries)},
-  departments:  ${JSON.stringify(departments)},
-  folders:      ${JSON.stringify(folders)}
+  folders: ${JSON.stringify(folders)}
 };
 
 'use strict';
@@ -38,26 +32,6 @@ const TOAST_ICONS = {
   success: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.5"/><path d="M6.5 10.5l2.5 2.5 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   info:    '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 9v5M10 6.5v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'
 };
-
-function showAlert(message, type) {
-  if (type === undefined) type = 'warning';
-  return new Promise(function (resolve) {
-    var overlay = document.createElement('div');
-    overlay.className = 'alert-overlay';
-    var dialog = document.createElement('div');
-    dialog.className = 'alert-dialog alert-' + type;
-    dialog.innerHTML =
-      '<span class="alert-icon">' + (TOAST_ICONS[type] || TOAST_ICONS.info) + '</span>' +
-      '<span class="alert-msg">' + message + '</span>' +
-      '<button class="alert-ok-btn">OK</button>';
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
-    dialog.querySelector('.alert-ok-btn').addEventListener('click', function () {
-      overlay.remove();
-      resolve();
-    });
-  });
-}
 
 function showToast(message, type, duration) {
   if (type === undefined) type = 'info';
@@ -91,7 +65,7 @@ function showToast(message, type, duration) {
 ───────────────────────────────────────── */
 const BASE_URL = '${baseUrl}';
 
-let invoices      = [];   // all loaded invoices
+let files         = [];   // all loaded files
 let dirHandle     = null; // FileSystemDirectoryHandle (Chrome/Edge)
 let fsSAPIEnabled = false;
 let cancelled     = false;
@@ -103,9 +77,6 @@ let successCount  = 0;
 let failedCount   = 0;
 let failedItems   = [];
 const rowStatus   = {};
-let currentPage   = 'invoices'; // 'invoices' | 'creditmemos' | 'invoicegroups'
-let csvTranIds    = null;       // Array of tranid strings when CSV search is active
-let currentMode   = 'transactions'; // 'transactions' | 'folder'
 
 /* ── Pagination state ── */
 let currentTablePage = 1;
@@ -114,81 +85,7 @@ let allSelected      = false;
 const selectedIds    = new Set();
 
 /* ─────────────────────────────────────────
-   PAGE CONFIG  — drives all dynamic UI
-───────────────────────────────────────── */
-const PAGE_CONFIG = {
-  invoices: {
-    title:       '<em>Transactions</em>',
-    sub:         'Search, preview and download Transactions PDFs by customer or date range',
-    searchLabel: 'Search Transactions',
-    emptyIcon:   '🔎',
-    emptyText:   'No Transactions found',
-    emptySub:    'Try adjusting your filters',
-    tableMeta:   'transactions',
-    typeLabel:   'Invoice',
-    statusOptions: [
-      { id: 'CustInvc:A', label: 'Invoice: Open' },
-      { id: 'CustInvc:B', label: 'Invoice: Paid in Full' }
-    ],
-    theadHTML: \`<tr>
-      <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
-      <th>Type</th><th></th><th>Tran ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
-      <th>Amount</th><th>Status</th><th>DL Status</th>
-    </tr>\`,
-    rowRendererKey: 'renderInvoiceRow',
-    action: 'getInvoices',
-    prefix: 'INV'
-  },
-  creditmemos: {
-    title:       '<em>Transactions</em>',
-    sub:         'Search, preview and download transaction PDFs by customer or date range',
-    searchLabel: 'Search Transactions',
-    emptyIcon:   '🔎',
-    emptyText:   'No Transactions found',
-    emptySub:    'Try adjusting your filters',
-    tableMeta:   'transactions',
-    typeLabel:   'Credit Memo',
-    statusOptions: [
-      { id: 'CustCred:A', label: 'Credit Memo: Open' },
-      { id: 'CustCred:B', label: 'Credit Memo: Fully Applied' }
-    ],
-    theadHTML: \`<tr>
-      <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
-      <th>Type</th><th></th><th>CM Number</th><th>Customer</th><th>Date</th><th>CM Amount</th>
-      <th>Remaining</th><th>Status</th><th>DL Status</th>
-    </tr>\`,
-    rowRendererKey: 'renderCreditMemoRow',
-    action: 'getCreditMemos',
-    prefix: 'CM'
-  },
-  invoicegroups: {
-    title:       '<em>Transactions</em>',
-    sub:         'Search, preview and download transaction PDFs by customer or date range',
-    searchLabel: 'Search Transactions',
-    emptyIcon:   '🔎',
-    emptyText:   'No Transactions found',
-    emptySub:    'Try adjusting your filters',
-    tableMeta:   'transactions',
-    typeLabel:   'Invoice Group',
-    statusOptions: [
-      { id: 'OPEN',     label: 'Invoice Group: Open' },
-      { id: 'PAIDPART', label: 'Invoice Group: Partially Paid' },
-      { id: 'PAIDFULL', label: 'Invoice Group: Paid in Full' }
-    ],
-    hideFilters: ['department'],
-    theadHTML: \`<tr>
-      <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
-      <th>Type</th><th></th><th>Group ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
-      <th>Amount Due</th><th>Status</th><th>DL Status</th>
-    </tr>\`,
-    rowRendererKey: 'renderInvoiceGroupRow',
-    action: 'getInvoiceGroups',
-    prefix: 'GRP'
-  }
-};
-
-/* ─────────────────────────────────────────
-   FOLDER MODE CONFIG
+   FILE TYPE OPTIONS
 ───────────────────────────────────────── */
 const FILE_TYPE_OPTIONS = [
   { id: 'PDF',        label: 'PDF' },
@@ -206,151 +103,12 @@ const FILE_TYPE_OPTIONS = [
   { id: 'JSON',       label: 'JSON' }
 ];
 
-const TRAN_COLGROUP_HTML = \`
-  <col style="width:3%"><col style="width:9%"><col style="width:3%"><col style="width:9%">
-  <col style="width:17%"><col style="width:8%"><col style="width:8%"><col style="width:10%">
-  <col style="width:13%"><col style="width:10%">
-\`;
-const FOLDER_COLGROUP_HTML = \`
-  <col style="width:4%"><col style="width:26%"><col style="width:20%"><col style="width:12%">
-  <col style="width:10%"><col style="width:13%"><col style="width:15%">
-\`;
-const FOLDER_THEAD_HTML = \`<tr>
-  <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
-  <th>Name</th><th>Folder</th><th>File Type</th><th>Size</th><th>Date Created</th><th>DL Status</th>
-</tr>\`;
-
 /* ─────────────────────────────────────────
-   SWITCH PAGE
-───────────────────────────────────────── */
-function switchPage(pageId) {
-  if (pageId === currentPage) return;
-  currentPage = pageId;
-  const cfg = PAGE_CONFIG[pageId];
-
-  // Search button label
-  document.getElementById('btn-search-label').textContent = cfg.searchLabel;
-
-  const hideFilters = cfg.hideFilters || [];
-
-  // Show/hide status, subsidiary, and department filter groups
-  document.getElementById('fg-status').style.display     = hideFilters.includes('status')     ? 'none' : '';
-  document.getElementById('fg-subsidiary').style.display = hideFilters.includes('subsidiary') ? 'none' : '';
-  document.getElementById('fg-department').style.display = hideFilters.includes('department') ? 'none' : '';
-
-  // Table headers
-  document.getElementById('inv-thead').innerHTML = cfg.theadHTML;
-
-  // Empty state
-  document.getElementById('empty-icon').textContent = cfg.emptyIcon;
-  document.getElementById('empty-text').textContent = cfg.emptyText;
-  document.getElementById('empty-sub').textContent  = cfg.emptySub;
-
-  // Reset results
-  invoices = [];
-  document.getElementById('inv-tbody').innerHTML   = '';
-  document.getElementById('table-meta').textContent = '0 transactions';
-  document.getElementById('table-container').classList.remove('show');
-  document.getElementById('empty-state').classList.remove('show');
-  document.getElementById('btn-dl-selected').disabled = true;
-  setStats(0, 0, 0);
-}
-
-/* ─────────────────────────────────────────
-   SWITCH MODE  (Transactions ↔ Folder)
-───────────────────────────────────────── */
-function switchMode(mode) {
-  if (mode === currentMode) return;
-  currentMode = mode;
-
-  document.getElementById('mode-tab-transactions').classList.toggle('active', mode === 'transactions');
-  document.getElementById('mode-tab-folder').classList.toggle('active', mode === 'folder');
-
-  document.getElementById('filter-bar-transactions').style.display = mode === 'transactions' ? '' : 'none';
-  document.getElementById('filter-bar-folder').style.display       = mode === 'folder' ? '' : 'none';
-  document.getElementById('csv-upload-bar').style.display          = mode === 'transactions' ? '' : 'none';
-
-  if (mode === 'folder') {
-    document.getElementById('inv-colgroup').innerHTML = FOLDER_COLGROUP_HTML;
-    document.getElementById('inv-thead').innerHTML    = FOLDER_THEAD_HTML;
-    document.getElementById('empty-icon').textContent = '📁';
-    document.getElementById('empty-text').textContent = 'No files found';
-    document.getElementById('empty-sub').textContent  = 'Select one or more folders and search';
-  } else {
-    const cfg = PAGE_CONFIG[currentPage];
-    document.getElementById('inv-colgroup').innerHTML = TRAN_COLGROUP_HTML;
-    document.getElementById('inv-thead').innerHTML    = cfg.theadHTML;
-    document.getElementById('empty-icon').textContent = cfg.emptyIcon;
-    document.getElementById('empty-text').textContent = cfg.emptyText;
-    document.getElementById('empty-sub').textContent  = cfg.emptySub;
-  }
-
-  // Reset results
-  invoices = [];
-  document.getElementById('inv-tbody').innerHTML   = '';
-  document.getElementById('table-meta').textContent = mode === 'folder' ? '0 files' : '0 transactions';
-  document.getElementById('table-container').classList.remove('show');
-  document.getElementById('empty-state').classList.remove('show');
-  document.getElementById('btn-dl-selected').disabled = true;
-  allSelected = false;
-  selectedIds.clear();
-  currentTablePage = 1;
-  setStats(0, 0, 0);
-}
-
-/**
- * Single entry point for both search buttons — dispatches to the
- * transaction search or the Folder-mode file search based on currentMode.
- */
-function runSearch() {
-  if (currentMode === 'folder') {
-    doFileSearch();
-  } else {
-    doSearch();
-  }
-}
-
-/* ─────────────────────────────────────────
-   TRANSACTION TYPE SELECTION CHANGE
-───────────────────────────────────────── */
-function onTranTypeSelectionChange() {
-  const sel = msGetValues('trantype');
-  // Use first selected type's page layout, or default to invoices when none selected
-  const pageId = sel.length > 0 ? sel[0] : 'invoices';
-  switchPage(pageId);
-
-  // When multiple types selected, show subsidiary/department unless ALL selected types hide it
-  const types = sel.length > 0 ? sel : Object.keys(PAGE_CONFIG);
-  const allHideSub  = types.every(t => (PAGE_CONFIG[t].hideFilters || []).includes('subsidiary'));
-  const allHideDept = types.every(t => (PAGE_CONFIG[t].hideFilters || []).includes('department'));
-  document.getElementById('fg-subsidiary').style.display = allHideSub  ? 'none' : '';
-  document.getElementById('fg-department').style.display = allHideDept ? 'none' : '';
-
-  updateStatusOptions();
-}
-
-function updateStatusOptions() {
-  const selTypes = msGetValues('trantype');
-  const types = selTypes.length > 0 ? selTypes : Object.keys(PAGE_CONFIG);
-  let allOptions = [];
-  types.forEach(t => {
-    const cfg = PAGE_CONFIG[t];
-    if (cfg && cfg.statusOptions) allOptions = allOptions.concat(cfg.statusOptions);
-  });
-  // Preserve selected statuses that are still valid in the new option set
-  const validIds = new Set(allOptions.map(o => String(o.id)));
-  const toRemove = [...MS_STATE['status'].selected].filter(id => !validIds.has(id));
-  toRemove.forEach(id => MS_STATE['status'].selected.delete(id));
-  msSetOptions('status', allOptions);
-  msUpdateTrigger('status');
-}
-
-/* ─────────────────────────────────────────
-   UNIFIED SEARCH DISPATCHER
+   SEARCH  →  action=getFiles
    ROWNUM pagination on server, client fetches
    page-by-page with live progress & exact counts.
 ───────────────────────────────────────── */
-const SEARCH_PAGE_SIZE = 5000;   // rows per page — matches server ROWNUM_PAGE
+const FILE_SEARCH_PAGE_SIZE = 1000; // matches server PAGE_SIZE in pdc_mod_files.js
 
 /* ── Search progress overlay helpers ── */
 function showSearchProgress() {
@@ -401,165 +159,15 @@ function hideSearchProgress() {
   if (el) el.remove();
 }
 
-async function doSearch() {
-  var cfg = PAGE_CONFIG[currentPage];
-  var btn = document.getElementById('btn-search');
-  btn.disabled = true;
-  var origLabel = cfg.searchLabel;
-  document.getElementById('btn-search-label').textContent = 'Searching...';
-
-  var truncWarn = document.getElementById('truncation-warning');
-  if (truncWarn) truncWarn.remove();
-
-  var selTypes = msGetValues('trantype');
-  var typesToSearch = selTypes.length > 0 ? selTypes : Object.keys(PAGE_CONFIG);
-
-  var allSelectedStatuses = msGetValues('status');
-  console.log('[PDC doSearch] statuses=' + JSON.stringify(allSelectedStatuses) + ' types=' + JSON.stringify(typesToSearch));
-
-  showSearchProgress();
-
-  try {
-    function getStatusForType(typeKey) {
-      if (allSelectedStatuses.length === 0) return '';
-      var typeStatusIds = (PAGE_CONFIG[typeKey].statusOptions || []).map(function(o) { return String(o.id); });
-      var relevant = allSelectedStatuses.filter(function(s) { return typeStatusIds.includes(s); });
-      if (relevant.length === 0) return null;
-      return relevant.join(',');
-    }
-
-    var allInvoices = [];
-    var grandTotal = 0;
-    var grandFetched = 0;
-
-    for (var ti = 0; ti < typesToSearch.length; ti++) {
-      var typeKey = typesToSearch[ti];
-      var typeCfg = PAGE_CONFIG[typeKey];
-      if (!typeCfg) continue;
-
-      var statusForType = getStatusForType(typeKey);
-      if (statusForType === null && !(csvTranIds && csvTranIds.length > 0)) continue;
-
-      var typeLabel = typeCfg.typeLabel || typeKey;
-
-      var baseParams = { action: typeCfg.action };
-
-      if (csvTranIds && csvTranIds.length > 0) {
-        // CSV mode: only search by tranid list, ignore other filters
-        baseParams.tranIds = csvTranIds.join(',');
-      } else {
-        // Normal filter mode
-        baseParams.dateFrom   = toISODate(document.getElementById('f-dateFrom').value);
-        baseParams.dateTo     = toISODate(document.getElementById('f-dateTo').value);
-        baseParams.customer   = msGetValues('customer').join(',');
-        baseParams.department = msGetValues('department').join(',');
-        baseParams.subsidiary = msGetValues('subsidiary').join(',');
-        baseParams.status     = statusForType;
-        baseParams.tranId     = (document.getElementById('f-tranId').value || '').trim();
-        baseParams.poNum      = (document.getElementById('f-poNum').value || '').trim();
-        baseParams.workAuth   = (document.getElementById('f-workAuth').value || '').trim();
-      }
-
-      // Page-by-page fetch using ROWNUM (rowBegin/rowEnd)
-      var rowBegin = 1;
-      var typeTotal = 0;
-      var moreRecords = true;
-
-      while (moreRecords) {
-        var rowEnd = rowBegin + SEARCH_PAGE_SIZE - 1;
-        var params = new URLSearchParams(Object.assign({}, baseParams, {
-          rowBegin: rowBegin,
-          rowEnd:   rowEnd
-        }));
-
-        console.log('[PDC doSearch] type=' + typeKey + ' rows ' + rowBegin + '-' + rowEnd);
-        var resp = await fetch(BASE_URL + '&' + params.toString());
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        var data = await resp.json();
-        if (!data.success) throw new Error(data.error || 'Unknown error');
-
-        // First page returns totalCount
-        if (rowBegin === 1 && data.totalCount != null) {
-          typeTotal = data.totalCount;
-          grandTotal += typeTotal;
-        }
-
-        var items = (data.invoices || []).map(function(inv) {
-          return Object.assign({}, inv, { _typeLabel: typeLabel, _typeKey: typeKey });
-        });
-        allInvoices = allInvoices.concat(items);
-        grandFetched += items.length;
-
-        console.log('[PDC doSearch] type=' + typeKey + ' page returned ' + items.length + ' fetched=' + grandFetched + '/' + grandTotal);
-        updateSearchProgress(grandFetched, grandTotal, typeLabel);
-
-        // ROWNUM termination: if page returned fewer than page size, no more rows
-        if (items.length < SEARCH_PAGE_SIZE) {
-          moreRecords = false;
-        } else {
-          rowBegin += SEARCH_PAGE_SIZE;
-        }
-      }
-    }
-
-    // Update overlay to rendering phase
-    var title = document.getElementById('search-progress-title');
-    if (title) title.textContent = 'Please wait, rendering ' + allInvoices.length + ' records to screen...';
-    var bar = document.getElementById('search-progress-bar');
-    if (bar) bar.style.width = '100%';
-    var status = document.getElementById('search-progress-status');
-    if (status) status.textContent = 'Extracted ' + allInvoices.length + ' records — rendering table...';
-
-    // Yield to browser so the rendering message is visible before the heavy renderTable call
-    await new Promise(function (resolve) { requestAnimationFrame(function () { setTimeout(resolve, 50); }); });
-
-    // Clear CSV mode after search completes
-    var wasCsv = !!csvTranIds;
-    csvTranIds = null;
-
-    invoices = allInvoices;
-    renderTable(invoices);
-    setStats(invoices.length, 0, 0);
-
-    if (wasCsv) {
-      showToast('CSV search complete — found ' + allInvoices.length + ' transaction(s)', 'success');
-    }
-
-    if (invoices.length === 0) {
-      document.getElementById('table-container').classList.remove('show');
-      document.getElementById('empty-state').classList.add('show');
-    } else {
-      document.getElementById('empty-state').classList.remove('show');
-      document.getElementById('table-container').classList.add('show');
-    }
-  } catch (e) {
-    console.error('[PDC doSearch] Error:', e);
-    var tbody = document.getElementById('inv-tbody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#c00;padding:1rem;">Search failed: ' + (e.message || 'Unknown error') + '</td></tr>';
-    document.getElementById('table-container').classList.add('show');
-    document.getElementById('empty-state').classList.remove('show');
-  } finally {
-    hideSearchProgress();
-    btn.disabled = false;
-    document.getElementById('btn-search-label').textContent = origLabel;
-  }
-}
-
-/* ─────────────────────────────────────────
-   FOLDER MODE — FILE SEARCH
-   action=getFiles — same ROWNUM paging pattern as doSearch().
-───────────────────────────────────────── */
-const FILE_SEARCH_PAGE_SIZE = 1000; // matches server PAGE_SIZE in pdc_mod_files.js
-
-async function doFileSearch() {
+async function runSearch() {
   var folderIds = msGetValues('folder');
   if (folderIds.length === 0) {
     showToast('Please select at least one folder to search', 'warning');
     return;
   }
 
-  var btn      = document.getElementById('btn-search-folder');
-  var labelEl  = document.getElementById('btn-search-folder-label');
+  var btn      = document.getElementById('btn-search');
+  var labelEl  = document.getElementById('btn-search-label');
   var origLabel = labelEl.textContent;
   btn.disabled = true;
   labelEl.textContent = 'Searching...';
@@ -602,11 +210,11 @@ async function doFileSearch() {
       else rowBegin += FILE_SEARCH_PAGE_SIZE;
     }
 
-    invoices = allFiles;
-    renderTable(invoices);
-    setStats(invoices.length, 0, 0);
+    files = allFiles;
+    renderTable(files);
+    setStats(files.length, 0, 0);
 
-    if (invoices.length === 0) {
+    if (files.length === 0) {
       document.getElementById('table-container').classList.remove('show');
       document.getElementById('empty-state').classList.add('show');
     } else {
@@ -614,7 +222,7 @@ async function doFileSearch() {
       document.getElementById('table-container').classList.add('show');
     }
   } catch (e) {
-    console.error('[PDC doFileSearch] Error:', e);
+    console.error('[PDC runSearch] Error:', e);
     var tbody = document.getElementById('inv-tbody');
     if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#c00;padding:1rem;">Search failed: ' + (e.message || 'Unknown error') + '</td></tr>';
     document.getElementById('table-container').classList.add('show');
@@ -627,88 +235,16 @@ async function doFileSearch() {
 }
 
 /* ─────────────────────────────────────────
-   CSV UPLOAD SEARCH
-───────────────────────────────────────── */
-async function doCSVSearch() {
-  var fileInput = document.getElementById('f-csvFile');
-  if (!fileInput.files || !fileInput.files[0]) {
-    showToast('Please select a CSV file first', 'warning');
-    return;
-  }
-  try {
-    var text = await fileInput.files[0].text();
-    var lines = text.split(/\\r?\\n/).filter(function(l) { return l.trim(); });
-    var ids = [];
-    var seen = {};
-    lines.forEach(function(l) {
-      var val = l.split(',')[0].trim();
-      if (val && !seen[val]) { seen[val] = true; ids.push(val); }
-    });
-    if (ids.length === 0) {
-      showToast('No transaction IDs found in the CSV file', 'warning');
-      return;
-    }
-    document.getElementById('csv-info').textContent = ids.length + ' IDs loaded';
-    document.getElementById('csv-info').style.display = '';
-
-    // Batch into chunks of 100 to stay within URL length limits
-    var CSV_CHUNK = 100;
-    if (ids.length <= CSV_CHUNK) {
-      csvTranIds = ids;
-      await doSearch();
-    } else {
-      showSearchProgress();
-      var allResults = [];
-      for (var ci = 0; ci < ids.length; ci += CSV_CHUNK) {
-        var chunk = ids.slice(ci, ci + CSV_CHUNK);
-        csvTranIds = chunk;
-        updateSearchProgress(ci, ids.length, 'CSV batch');
-
-        // Temporarily hijack doSearch to collect results
-        var prevInvoices = invoices;
-        await doSearch();
-        allResults = allResults.concat(invoices);
-      }
-      csvTranIds = null;
-      invoices = allResults;
-      renderTable(invoices);
-      setStats(invoices.length, 0, 0);
-      if (invoices.length === 0) {
-        document.getElementById('table-container').classList.remove('show');
-        document.getElementById('empty-state').classList.add('show');
-      } else {
-        document.getElementById('empty-state').classList.remove('show');
-        document.getElementById('table-container').classList.add('show');
-      }
-      hideSearchProgress();
-      showToast('CSV search complete — found ' + allResults.length + ' transaction(s) from ' + ids.length + ' IDs', 'success');
-    }
-  } catch (e) {
-    showToast('Error reading CSV file: ' + e.message, 'error');
-  }
-}
-
-/* ─────────────────────────────────────────
    MULTISELECT WIDGET
 ───────────────────────────────────────── */
 const MS_STATE = {
-  trantype:   { options: [], selected: new Set(), open: false },
-  customer:   { options: [], selected: new Set(), open: false },
-  department: { options: [], selected: new Set(), open: false },
-  subsidiary: { options: [], selected: new Set(), open: false },
-  status:     { options: [], selected: new Set(), open: false },
-  folder:     { options: [], selected: new Set(), open: false },
-  filetype:   { options: [], selected: new Set(), open: false }
+  folder:   { options: [], selected: new Set(), open: false },
+  filetype: { options: [], selected: new Set(), open: false }
 };
 
 const MS_PLACEHOLDERS = {
-  customer:   'All Customers',
-  trantype:   'All Transaction Types',
-  status:     'All Statuses',
-  subsidiary: 'All Subsidiaries',
-  department: 'All Departments',
-  folder:     'All Folders',
-  filetype:   'All File Types'
+  folder:   'All Folders',
+  filetype: 'All File Types'
 };
 
 function msToggle(key) {
@@ -774,7 +310,7 @@ function msRenderList(key, options) {
     return \`<div class="ms-option\${isSel ? ' selected' : ''}" onclick="msToggleOption('\${key}','\${o.id}',this)">
       <input type="checkbox" \${isSel ? 'checked' : ''} onclick="event.stopPropagation();msToggleOption('\${key}','\${o.id}',this.closest('.ms-option'))"/>
       <span class="ms-option-label">\${escHtml(o.label)}</span>
-      \${(key === 'trantype' || key === 'status' || key === 'filetype') ? '' : \`<span class="ms-option-sub">#\${o.id}</span>\`}
+      \${key === 'filetype' ? '' : \`<span class="ms-option-sub">#\${o.id}</span>\`}
     </div>\`;
   }).join('');
 }
@@ -792,14 +328,12 @@ function msToggleOption(key, id, el) {
     el.querySelector('input').checked = true;
   }
   msUpdateTrigger(key);
-  if (key === 'trantype') onTranTypeSelectionChange();
 }
 
 function msClear(key) {
   MS_STATE[key].selected.clear();
   msRenderList(key, MS_STATE[key].options);
   msUpdateTrigger(key);
-  if (key === 'trantype') onTranTypeSelectionChange();
 }
 
 function msUpdateTrigger(key) {
@@ -851,7 +385,6 @@ function msRemovePill(key, sid) {
   MS_STATE[key].selected.delete(sid);
   msRenderList(key, MS_STATE[key].options);
   msUpdateTrigger(key);
-  if (key === 'trantype') onTranTypeSelectionChange();
 }
 
 function msGetValues(key) {
@@ -865,35 +398,15 @@ function msGetValues(key) {
 (function init() {
   fsSAPIEnabled = ('showDirectoryPicker' in window);
 
-  // Default date range: last 90 days
+  // Populate multiselect dropdowns
+  msSetOptions('folder',   __LOOKUPS__.folders || []);
+  msSetOptions('filetype', FILE_TYPE_OPTIONS);
+
+  // Default "Date Created" range: last 90 days
   const today = new Date();
   const ago90 = new Date(today); ago90.setDate(ago90.getDate() - 90);
-  document.getElementById('f-dateTo').value   = fmtDate(today);
-  document.getElementById('f-dateFrom').value = fmtDate(ago90);
-
-  // Populate transaction type multiselect
-  msSetOptions('trantype', [
-    { id: 'invoices',      label: 'Invoices' },
-    { id: 'creditmemos',   label: 'Credit Memos' },
-    { id: 'invoicegroups', label: 'Invoice Groups' }
-  ]);
-
-  // Populate multiselect dropdowns from server-embedded data
-  msSetOptions('customer',   __LOOKUPS__.customers    || []);
-  msSetOptions('department', __LOOKUPS__.departments  || []);
-  msSetOptions('subsidiary', __LOOKUPS__.subsidiaries || []);
-  msSetOptions('folder',     __LOOKUPS__.folders      || []);
-  msSetOptions('filetype',   FILE_TYPE_OPTIONS);
-
-  // Default Folder-mode "Date Created" range: last 90 days
   document.getElementById('f-createdTo').value   = fmtDate(today);
   document.getElementById('f-createdFrom').value = fmtDate(ago90);
-
-  // Populate status multiselect with all status options by default
-  updateStatusOptions();
-
-  // Auto-search on first page load (Transactions mode is the default)
-  doSearch();
 })();
 
 function fmtDate(d) {
@@ -920,8 +433,6 @@ function toISODate(mmddyyyy) {
 /* ─────────────────────────────────────────
    HELPERS
 ───────────────────────────────────────── */
-function ts() { return new Date().toTimeString().slice(0, 8); }
-
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
@@ -932,8 +443,7 @@ function escJsStr(s) {
   return String(s).split(bs).join(bs + bs).split("'").join(bs + "'");
 }
 
-// Best-effort MIME type from a filename's extension — used for Folder-mode
-// previews/downloads where the file type is not always PDF.
+// Best-effort MIME type from a filename's extension — used for previews/downloads.
 function guessMimeFromName(name) {
   var ext = (String(name).split('.').pop() || '').toLowerCase();
   var map = {
@@ -955,7 +465,6 @@ function formatFileSize(kb) {
   if (n < 1024) return n.toFixed(0) + ' KB';
   return (n / 1024).toFixed(1) + ' MB';
 }
-
 
 function setStats(total, success, failed) {
   document.getElementById('s-total').textContent   = total;
@@ -981,37 +490,10 @@ function setProgress(done, total, label) {
   }
 }
 
-function buildFilename(inv) {
-  if (currentMode === 'folder') {
-    const prefix = (document.getElementById('f-prefix').value || '').replace(/[^a-zA-Z0-9_\\-]/g, '_');
-    const base   = inv.name || ('file_' + inv.id);
-    return prefix ? \`\${prefix}\${base}\` : base;
-  }
-  const pat    = document.getElementById('f-filename').value;
+function buildFilename(item) {
   const prefix = (document.getElementById('f-prefix').value || '').replace(/[^a-zA-Z0-9_\\-]/g, '_');
-  const tid    = (inv.tranId   || 'doc').replace(/[^a-zA-Z0-9_\\-]/g, '_');
-  const cust   = (inv.customer || 'unknown').replace(/[^a-zA-Z0-9_\\-]/g, '_').slice(0, 30);
-  const dt     = (inv.date     || '').replace(/-/g, '');
-  let name;
-  if (pat === 'tranid_date') name = \`\${tid}_\${dt}.pdf\`;
-  else if (pat === 'id_tranid') name = \`\${inv.id}_\${tid}.pdf\`;
-  else if (pat === 'cust_tranid') name = \`\${cust}_\${tid}.pdf\`;
-  else name = \`\${tid}.pdf\`;
-  return prefix ? \`\${prefix}\${name}\` : name;
-}
-
-function updatePreview() {
-  const pat = document.getElementById('f-filename').value;
-  const prefix = (document.getElementById('f-prefix').value || '').replace(/[^a-zA-Z0-9_\\-]/g, '_');
-  const samples = {
-    'tranid':      'INV-10482.pdf',
-    'tranid_date': 'INV-10482_20260301.pdf',
-    'id_tranid':   '12345_INV-10482.pdf',
-    'cust_tranid': 'Acme-Corp_INV-10482.pdf'
-  };
-  const base = samples[pat] || 'INV-10482.pdf';
-  document.getElementById('filename-preview').innerHTML =
-    \`<span>Preview:</span> \${prefix ? prefix + base : base}\`;
+  const base   = item.name || ('file_' + item.id);
+  return prefix ? \`\${prefix}\${base}\` : base;
 }
 
 /* ─────────────────────────────────────────
@@ -1042,12 +524,12 @@ function setRowStatus(id, status, errMsg) {
 /* ─────────────────────────────────────────
    SINGLE-ROW ACTIONS  (Preview / Download)
 ───────────────────────────────────────── */
-async function previewPDF(id, tranId) {
-  const inv = invoices.find(i => String(i.id) === String(id));
-  if (!inv) return;
+async function previewPDF(id, name) {
+  const item = files.find(i => String(i.id) === String(id));
+  if (!item) return;
   try {
-    const buffer = await downloadOnePDF(inv);
-    const mime   = currentMode === 'folder' ? guessMimeFromName(inv.name) : 'application/pdf';
+    const buffer = await downloadOneFile(item);
+    const mime   = guessMimeFromName(item.name);
     const blob   = new Blob([buffer], { type: mime });
     window.open(URL.createObjectURL(blob), '_blank');
   } catch (e) {
@@ -1055,17 +537,17 @@ async function previewPDF(id, tranId) {
   }
 }
 
-async function downloadSingle(id, tranId) {
-  const inv = invoices.find(i => String(i.id) === String(id));
-  if (!inv) { console.error('[PDC] downloadSingle: inv not found for id=' + id); return; }
+async function downloadSingle(id, name) {
+  const item = files.find(i => String(i.id) === String(id));
+  if (!item) { console.error('[PDC] downloadSingle: item not found for id=' + id); return; }
   setRowStatus(id, 'active');
   try {
-    const buffer   = await downloadOnePDF(inv);
-    const filename = buildFilename(inv);
-    const mime     = currentMode === 'folder' ? guessMimeFromName(filename) : 'application/pdf';
+    const buffer   = await downloadOneFile(item);
+    const filename = buildFilename(item);
+    const mime     = guessMimeFromName(filename);
 
     if (dirHandle && dirHandle.getFileHandle) {
-      await writePDFToFolder(dirHandle, filename, buffer, mime);
+      await writeFileToFolder(dirHandle, filename, buffer, mime);
     } else {
       const blob = new Blob([buffer], { type: mime });
       const a    = document.createElement('a');
@@ -1083,27 +565,10 @@ async function downloadSingle(id, tranId) {
 }
 
 /* ─────────────────────────────────────────
-   RENDER TABLE  (dispatches to row renderer)
+   RENDER TABLE
 ───────────────────────────────────────── */
 function renderTable(list) {
-  const thead = document.getElementById('inv-thead');
-
-  if (currentMode !== 'folder') {
-    // Detect if results contain multiple transaction types
-    const typeKeys = new Set(list.map(item => item._typeKey).filter(Boolean));
-    const isMultiType = typeKeys.size > 1;
-
-    // Use a unified header when mixing transaction types
-    if (isMultiType) {
-      thead.innerHTML = \`<tr>
-        <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
-        <th>Type</th><th></th><th>Tran ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
-        <th>Amount</th><th>Status</th><th>DL Status</th>
-      </tr>\`;
-    }
-  }
-
-  // Re-attach cb-all after thead was rewritten by switchPage/switchMode
+  // Re-attach cb-all after thead was rewritten
   const cbAll = document.getElementById('cb-all');
   if (cbAll) cbAll.onchange = function() { onSelectAll(this); };
 
@@ -1115,7 +580,7 @@ function renderTable(list) {
   allSelected = false;
   selectedIds.clear();
 
-  document.getElementById('table-meta').textContent = list.length + (currentMode === 'folder' ? ' files' : ' transactions');
+  document.getElementById('table-meta').textContent = list.length + ' files';
   renderTablePage();
 }
 
@@ -1124,7 +589,7 @@ function renderTablePage() {
   const tbody = document.getElementById('inv-tbody');
   tbody.innerHTML = '';
 
-  const total = invoices.length;
+  const total = files.length;
   const isAllMode = rowsPerPage === 0; // 0 = show all
   const perPage = isAllMode ? total : rowsPerPage;
   const totalPages = isAllMode ? 1 : Math.max(1, Math.ceil(total / perPage));
@@ -1133,27 +598,9 @@ function renderTablePage() {
 
   const startIdx = (currentTablePage - 1) * perPage;
   const endIdx   = Math.min(startIdx + perPage, total);
-  const pageSlice = invoices.slice(startIdx, endIdx);
+  const pageSlice = files.slice(startIdx, endIdx);
 
-  if (currentMode === 'folder') {
-    pageSlice.forEach((item) => tbody.appendChild(renderFileRow(item)));
-  } else {
-    const cfg = PAGE_CONFIG[currentPage];
-    // Resolve renderer by string key
-    const renderers = {
-      renderInvoiceRow,
-      renderCreditMemoRow,
-      renderInvoiceGroupRow
-    };
-    const defaultRenderer = renderers[cfg.rowRendererKey];
-
-    pageSlice.forEach((item) => {
-      const itemCfg = item._typeKey ? PAGE_CONFIG[item._typeKey] : null;
-      const rowRenderer = (itemCfg ? renderers[itemCfg.rowRendererKey] : null) || defaultRenderer;
-      const tr = rowRenderer(item);
-      tbody.appendChild(tr);
-    });
-  }
+  pageSlice.forEach((item) => tbody.appendChild(renderFileRow(item)));
 
   // Restore checkbox state for visible rows
   document.querySelectorAll('.row-cb').forEach(cb => {
@@ -1235,7 +682,7 @@ function getVisiblePages(current, total) {
 }
 
 function goToTablePage(page) {
-  const total = invoices.length;
+  const total = files.length;
   const perPage = rowsPerPage === 0 ? total : rowsPerPage;
   const totalPages = rowsPerPage === 0 ? 1 : Math.max(1, Math.ceil(total / perPage));
   if (page < 1 || page > totalPages) return;
@@ -1267,107 +714,7 @@ function applyCustomRows(val) {
   renderTablePage();
 }
 
-/* ── Invoice row ── */
-function renderInvoiceRow(inv) {
-  const amt      = formatAmt(inv.amount, inv.currency);
-  const tr       = document.createElement('tr');
-  tr.id = 'row-' + inv.id;
-  tr.innerHTML = \`
-    <td class="cb-wrap"><input type="checkbox" class="row-cb" data-id="\${inv.id}" onchange="onRowCheck()"/></td>
-    <td><span class="type-label">\${escHtml(inv._typeLabel || 'Invoice')}</span></td>
-    <td></td>
-    <td><span class="tran-id">\${escHtml(inv.tranId)}</span></td>
-    <td>\${escHtml(inv.customer)}</td>
-    <td>\${escHtml(fmtDisplayDate(inv.date) || '—')}</td>
-    <td>\${escHtml(fmtDisplayDate(inv.dueDate) || '—')}</td>
-    <td><span class="amount">\${amt}</span></td>
-    <td><span class="badge-status \${invStatusClass(inv.statusCode)}">\${escHtml(inv.status || '—')}</span></td>
-    <td>
-      <div class="row-actions">
-        <button type="button" class="icon-btn preview" title="Preview" onclick="previewPDF(\${inv.id},'\${inv.tranId}')">
-          <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg>
-        </button>
-        <button type="button" class="icon-btn dl" title="Download PDF" onclick="downloadSingle(\${inv.id},'\${inv.tranId}')">
-          <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M6 1v7M3.5 5.5L6 8l2.5-2.5M1 10h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <div class="dl-status" style="min-width:72px">
-          <span class="status-dot dot-pending" id="row-dot-\${inv.id}"></span>
-          <span id="row-lbl-\${inv.id}" style="color:var(--text-muted);font-size:11.5px">Pending</span>
-        </div>
-      </div>
-    </td>
-  \`;
-  return tr;
-}
-
-/* ── Credit Memo row ── */
-function renderCreditMemoRow(inv) {
-  const amt      = formatAmt(inv.amount, inv.currency);
-  const rem      = formatAmt(inv.remaining, inv.currency);
-  const tr       = document.createElement('tr');
-  tr.id = 'row-' + inv.id;
-  tr.innerHTML = \`
-    <td class="cb-wrap"><input type="checkbox" class="row-cb" data-id="\${inv.id}" onchange="onRowCheck()"/></td>
-    <td><span class="type-label">\${escHtml(inv._typeLabel || 'Credit Memo')}</span></td>
-    <td></td>
-    <td><span class="tran-id" style="color:var(--rose)">\${escHtml(inv.tranId)}</span></td>
-    <td>\${escHtml(inv.customer)}</td>
-    <td>\${escHtml(fmtDisplayDate(inv.date) || '—')}</td>
-    <td>\${escHtml(fmtDisplayDate(inv.dueDate) || '—')}</td>
-    <td><span class="amount credit">\${amt}</span></td>
-    <td><span class="badge-status \${cmStatusClass(inv.statusCode)}">\${escHtml(inv.status || '—')}</span></td>
-    <td>
-      <div class="row-actions">
-        <button type="button" class="icon-btn preview" title="Preview" onclick="previewPDF(\${inv.id},'\${inv.tranId}')">
-          <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg>
-        </button>
-        <button type="button" class="icon-btn dl" title="Download PDF" onclick="downloadSingle(\${inv.id},'\${inv.tranId}')">
-          <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M6 1v7M3.5 5.5L6 8l2.5-2.5M1 10h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <div class="dl-status" style="min-width:72px">
-          <span class="status-dot dot-pending" id="row-dot-\${inv.id}"></span>
-          <span id="row-lbl-\${inv.id}" style="color:var(--text-muted);font-size:11.5px">Pending</span>
-        </div>
-      </div>
-    </td>
-  \`;
-  return tr;
-}
-
-/* ── Invoice Group row ── */
-function renderInvoiceGroupRow(inv) {
-  const amt      = formatAmt(inv.amount, inv.currency);
-  const tr       = document.createElement('tr');
-  tr.id = 'row-' + inv.id;
-  tr.innerHTML = \`
-    <td class="cb-wrap"><input type="checkbox" class="row-cb" data-id="\${inv.id}" onchange="onRowCheck()"/></td>
-    <td><span class="type-label">\${escHtml(inv._typeLabel || 'Invoice Group')}</span></td>
-    <td></td>
-    <td><span class="tran-id" style="color:var(--amber)">\${escHtml(inv.tranId)}</span></td>
-    <td>\${escHtml(inv.customer)}</td>
-    <td>\${escHtml(fmtDisplayDate(inv.date) || '—')}</td>
-    <td>\${escHtml(fmtDisplayDate(inv.dueDate) || '—')}</td>
-    <td><span class="amount">\${amt}</span></td>
-    <td><span class="badge-status \${grpStatusClass(inv.statusCode)}">\${escHtml(inv.status || '—')}</span></td>
-    <td>
-      <div class="row-actions">
-        <button type="button" class="icon-btn preview" title="Preview" onclick="previewPDF(\${inv.id},'\${inv.tranId}')">
-          <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg>
-        </button>
-        <button type="button" class="icon-btn dl" title="Download PDF" onclick="downloadSingle(\${inv.id},'\${inv.tranId}')">
-          <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M6 1v7M3.5 5.5L6 8l2.5-2.5M1 10h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <div class="dl-status" style="min-width:72px">
-          <span class="status-dot dot-pending" id="row-dot-\${inv.id}"></span>
-          <span id="row-lbl-\${inv.id}" style="color:var(--text-muted);font-size:11.5px">Pending</span>
-        </div>
-      </div>
-    </td>
-  \`;
-  return tr;
-}
-
-/* ── Folder-mode file row ── */
+/* ── File row ── */
 function renderFileRow(item) {
   const tr = document.createElement('tr');
   tr.id = 'row-' + item.id;
@@ -1397,38 +744,12 @@ function renderFileRow(item) {
   return tr;
 }
 
-/* ── Status badge helpers ── */
-function invStatusClass(code) {
-  if (code === 'C') return 'bs-paid';
-  if (code === 'A' || code === 'B') return 'bs-open';
-  return 'bs-other';
-}
-function cmStatusClass(code) {
-  if (code === 'B') return 'bs-paid';  // Fully Applied
-  if (code === 'A') return 'bs-open';  // Open
-  return 'bs-other';
-}
-function grpStatusClass(code) {
-  if (code === 'PAIDFULL' || code === 'BILLED') return 'bs-paid';
-  if (code === 'OPEN' || code === 'PAIDPART')   return 'bs-open';
-  return 'bs-other';
-}
-
-/* ── Shared helpers ── */
-function avatarInitials(name) {
-  return (name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-}
-function formatAmt(val, currency) {
-  const n = parseFloat(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 });
-  return currency ? currency + ' ' + n : n;
-}
-
 /* ─────────────────────────────────────────
    SELECTION HELPERS
 ───────────────────────────────────────── */
-function getSelectedInvoices() {
-  if (allSelected) return invoices;
-  return selectedIds.size > 0 ? invoices.filter(inv => selectedIds.has(String(inv.id))) : [];
+function getSelectedFiles() {
+  if (allSelected) return files;
+  return selectedIds.size > 0 ? files.filter(item => selectedIds.has(String(item.id))) : [];
 }
 
 function onRowCheck() {
@@ -1458,7 +779,7 @@ function onRowCheck() {
 function onSelectAll(cb) {
   if (cb.checked) {
     allSelected = true;
-    invoices.forEach(inv => selectedIds.add(String(inv.id)));
+    files.forEach(item => selectedIds.add(String(item.id)));
   } else {
     allSelected = false;
     selectedIds.clear();
@@ -1468,7 +789,7 @@ function onSelectAll(cb) {
 }
 
 function toggleSelectAll() {
-  const wasAllSelected = allSelected && selectedIds.size === invoices.length;
+  const wasAllSelected = allSelected && selectedIds.size === files.length;
   if (wasAllSelected) {
     allSelected = false;
     selectedIds.clear();
@@ -1476,7 +797,7 @@ function toggleSelectAll() {
     document.getElementById('cb-all').checked = false;
   } else {
     allSelected = true;
-    invoices.forEach(inv => selectedIds.add(String(inv.id)));
+    files.forEach(item => selectedIds.add(String(item.id)));
     document.querySelectorAll('.row-cb').forEach(c => c.checked = true);
     document.getElementById('cb-all').checked = true;
   }
@@ -1488,22 +809,10 @@ function toggleSelectAll() {
    MODAL NAVIGATION
 ───────────────────────────────────────── */
 function openModal() {
-  if (invoices.length === 0) {return; }
-  const sel = getSelectedInvoices();
-  const unitLabel = currentMode === 'folder' ? ' File' : ' PDF';
-  document.getElementById('chip-count').textContent = sel.length + unitLabel + (sel.length !== 1 ? 's' : '');
+  if (files.length === 0) { return; }
+  const sel = getSelectedFiles();
+  document.getElementById('chip-count').textContent = sel.length + ' File' + (sel.length !== 1 ? 's' : '');
   document.getElementById('chip-est').textContent = Math.round(sel.length * 85);
-  const fpGroup = document.getElementById('filename-pattern-group');
-  if (fpGroup) fpGroup.style.display = currentMode === 'folder' ? 'none' : '';
-  const fpPreview = document.getElementById('filename-preview');
-  if (fpPreview) fpPreview.style.display = currentMode === 'folder' ? 'none' : '';
-  document.getElementById('step1-sub').textContent = currentMode === 'folder'
-    ? 'Select where files will be saved on your machine'
-    : 'Select where PDFs will be saved on your machine';
-  document.getElementById('skiperr-label').textContent = currentMode === 'folder' ? 'Skip failed files' : 'Skip failed PDFs';
-  document.getElementById('skiperr-sub').textContent   = currentMode === 'folder'
-    ? 'Continue downloading even if one file fails'
-    : 'Continue downloading even if one invoice fails';
   goToStep(1);
   document.getElementById('modal-overlay').classList.add('show');
 }
@@ -1534,8 +843,8 @@ function resetAndClose() {
   allSelected = false;
   selectedIds.clear();
   currentTablePage = 1;
-  setStats(invoices.length, 0, 0);
-  invoices.forEach(inv => setRowStatus(inv.id, 'pending'));
+  setStats(files.length, 0, 0);
+  files.forEach(item => setRowStatus(item.id, 'pending'));
   renderTablePage();
   closeModal();
 }
@@ -1601,7 +910,7 @@ async function pickQuick(el, folderName) {
 function applyFolderUI(name) {
   document.getElementById('folder-picker').classList.add('selected');
   document.getElementById('fp-title').textContent = name;
-  document.getElementById('fp-hint').textContent  = 'Folder selected — PDFs will be saved here';
+  document.getElementById('fp-hint').textContent  = 'Folder selected — files will be saved here';
   document.getElementById('fp-browse-btn').textContent = '✓ Selected';
   document.getElementById('fp-browse-btn').classList.add('chosen');
   document.getElementById('folder-path').textContent = name;
@@ -1651,12 +960,10 @@ async function runWithConcurrency(tasks, limit, onTaskDone) {
 }
 
 /* ─────────────────────────────────────────
-   DOWNLOAD ONE PDF  →  action=getPDF
+   DOWNLOAD ONE FILE  →  action=getFile
 ───────────────────────────────────────── */
-async function downloadOnePDF(inv) {
-  const url = currentMode === 'folder'
-    ? BASE_URL + '&action=getFile&id=' + inv.id
-    : BASE_URL + '&action=getPDF&id=' + inv.id + '&tranid=' + encodeURIComponent(inv.tranId) + '&type=' + encodeURIComponent(inv._typeKey || currentPage);
+async function downloadOneFile(item) {
+  const url = BASE_URL + '&action=getFile&id=' + item.id;
   const resp = await fetch(url, { signal: abortCtrl ? abortCtrl.signal : undefined });
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   const ct = resp.headers.get('Content-Type') || '';
@@ -1673,8 +980,8 @@ async function downloadOnePDF(inv) {
    WRITE FILE  →  File System Access API
    handle can be the root dir OR a date subfolder handle
 ───────────────────────────────────────── */
-async function writePDFToFolder(handle, filename, buffer, mime) {
-  mime = mime || 'application/pdf';
+async function writeFileToFolder(handle, filename, buffer, mime) {
+  mime = mime || 'application/octet-stream';
   if (!handle || !handle.getFileHandle) {
     // Fallback: trigger browser download if FS API handle is not available
     const blob = new Blob([buffer], { type: mime });
@@ -1708,47 +1015,6 @@ async function resolveWriteTarget(baseHandle) {
     return subHandle;
   } catch (e) {
     return baseHandle;
-  }
-}
-
-/* ─────────────────────────────────────────
-   OPEN FOLDER AFTER DOWNLOAD
-   Best-effort: browser security prevents
-   opening OS file explorer directly, so we:
-   1. Try the Notifications API for a desktop ping
-   2. Re-open showDirectoryPicker on the same
-      handle (Chrome 111+) so the user lands
-      at the right folder in the picker
-   3. Fall back to a prominent UI message
-
-  // 1. Desktop notification (non-blocking)
-  if ('Notification' in window) {
-    if (Notification.permission === 'granted') {
-      new Notification('NetSuite Download Complete', {
-        body: \`PDFs saved to "\${handle.name}". Open your file manager to view them.\`,
-        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><text y="28" font-size="28">📁</text></svg>'
-      });
-    } else if (Notification.permission !== 'denied') {
-      Notification.requestPermission().then(p => {
-        if (p === 'granted') {
-          new Notification('NetSuite Download Complete', {
-            body: \`PDFs saved to "\${handle.name}"\`
-          });
-        }
-      });
-    }
-  }
-
-  // 2. Try re-opening directory picker at same location (Chrome 111+)
-  try {
-    if (typeof handle.requestPermission === 'function') {
-      await handle.requestPermission({ mode: 'read' });
-    }
-    // showDirectoryPicker with startIn lands user at the saved folder
-    await window.showDirectoryPicker({ startIn: handle, mode: 'read' });
-  } catch (e) {
-    if (e.name !== 'AbortError') {
-    }
   }
 }
 
@@ -1792,9 +1058,9 @@ function cancelDownload() {
    START DOWNLOAD  (main orchestrator)
 ───────────────────────────────────────── */
 async function startDownload() {
-  const selected   = getSelectedInvoices();
-  if (selected.length === 0) {return; }
-  if (!dirHandle && fsSAPIEnabled) {return; }
+  const selected   = getSelectedFiles();
+  if (selected.length === 0) { return; }
+  if (!dirHandle && fsSAPIEnabled) { return; }
   if (downloading) return;
 
   const skipErr        = document.getElementById('f-skiperr').checked;
@@ -1804,7 +1070,6 @@ async function startDownload() {
 
   // Resolve actual write target (may be a date subfolder if toggle is on)
   let writeHandle = await resolveWriteTarget(dirHandle);
-  _lastWriteHandle = writeHandle;
   const writeDirName = (writeHandle && writeHandle.name) ? writeHandle.name : dirName;
 
   successCount = 0;
@@ -1817,41 +1082,37 @@ async function startDownload() {
   dlStartTime  = Date.now();
 
   // Reset row statuses
-  selected.forEach(inv => setRowStatus(inv.id, 'pending'));
+  selected.forEach(item => setRowStatus(item.id, 'pending'));
   setStats(total, 0, 0);
 
   // Update step 2 UI
-  const unitWord = currentMode === 'folder' ? 'File' : 'PDF';
   document.getElementById('dest-path-display').textContent = writeDirName;
-  document.getElementById('step2-sub').textContent = \`Saving \${total} \${unitWord}\${total!==1?'s':''} — concurrency: \${concur}\`;
+  document.getElementById('step2-sub').textContent = \`Saving \${total} File\${total!==1?'s':''} — concurrency: \${concur}\`;
   document.getElementById('concur-val').textContent = concur;
   document.getElementById('skiperr-disp').textContent = skipErr ? 'On' : 'Off';
-  document.getElementById('dl-hero-sub').textContent  = \`\${total} \${unitWord.toLowerCase()}\${total!==1?'s':''} · concurrency \${concur}\`;
+  document.getElementById('dl-hero-sub').textContent  = \`\${total} file\${total!==1?'s':''} · concurrency \${concur}\`;
   setProgress(0, total, 'Starting…');
 
   // Go to step 2
   goToStep(2);
 
-
-
   const done = { n: 0 };
 
-  const tasks = selected.map(inv => async () => {
+  const tasks = selected.map(item => async () => {
     // Wait while paused
     while (paused && !cancelled) {
       await new Promise(r => setTimeout(r, 200));
     }
-    if (cancelled) return { inv, ok: false, cancelled: true };
+    if (cancelled) return { item, ok: false, cancelled: true };
 
-    setRowStatus(inv.id, 'active');
-    const filename = buildFilename(inv);
+    setRowStatus(item.id, 'active');
+    const filename = buildFilename(item);
     const t0 = Date.now();
 
     try {
-      const buffer = await downloadOnePDF(inv);
-      if (cancelled) return { inv, ok: false, cancelled: true };
+      const buffer = await downloadOneFile(item);
+      if (cancelled) return { item, ok: false, cancelled: true };
 
-      const kb = (buffer.byteLength / 1024).toFixed(0);
       const ms = Date.now() - t0;
       const kbps = ms > 0 ? Math.round(buffer.byteLength / ms) : 0;
 
@@ -1859,20 +1120,20 @@ async function startDownload() {
       document.getElementById('dm-speed').textContent  = kbps + ' KB/s';
       document.getElementById('speed-disp').textContent = kbps + ' KB/s';
 
-      const mime = currentMode === 'folder' ? guessMimeFromName(filename) : 'application/pdf';
-      await writePDFToFolder(writeHandle, filename, buffer, mime);
+      const mime = guessMimeFromName(filename);
+      await writeFileToFolder(writeHandle, filename, buffer, mime);
 
-      setRowStatus(inv.id, 'ok');
-      return { inv, ok: true, filename, kb };
+      setRowStatus(item.id, 'ok');
+      return { item, ok: true, filename };
     } catch (e) {
-      console.error('[PDC] batch download failed for id=' + inv.id, e);
-      setRowStatus(inv.id, 'err', e.message);
+      console.error('[PDC] batch download failed for id=' + item.id, e);
+      setRowStatus(item.id, 'err', e.message);
       if (!skipErr) cancelled = true;
-      return { inv, ok: false, error: e.message };
+      return { item, ok: false, error: e.message };
     }
   });
 
-  const itemLabel = (inv) => (currentMode === 'folder' ? inv.name : inv.tranId) || ('#' + inv.id);
+  const itemLabel = (item) => item.name || ('#' + item.id);
 
   await runWithConcurrency(tasks, concur, (result) => {
     if (result.cancelled) return;
@@ -1882,11 +1143,11 @@ async function startDownload() {
       successCount++;
     } else {
       failedCount++;
-      failedItems.push({ tranId: itemLabel(result.inv), reason: result.error || 'Unknown error' });
+      failedItems.push({ tranId: itemLabel(result.item), reason: result.error || 'Unknown error' });
     }
 
     setStats(total, successCount, failedCount);
-    setProgress(done.n, total, result.ok ? result.filename : ('FAILED: ' + itemLabel(result.inv)));
+    setProgress(done.n, total, result.ok ? result.filename : ('FAILED: ' + itemLabel(result.item)));
   });
 
   downloading = false;
@@ -1900,16 +1161,16 @@ async function startDownload() {
     document.getElementById('done-icon').textContent  = hasErrors ? '⚠️' : '✅';
     document.getElementById('done-title').innerHTML   = hasErrors
       ? \`Download <em style="color:var(--amber)">Finished</em>\`
-      : \`\${unitWord}s <em>Saved</em>\`;
+      : \`Files <em>Saved</em>\`;
     document.getElementById('done-sub').textContent   = hasErrors
       ? \`\${successCount} succeeded, \${failedCount} failed\`
-      : \`All \${successCount} \${unitWord.toLowerCase()}\${successCount!==1?'s':''} saved successfully in \${elapsed}s\`;
+      : \`All \${successCount} file\${successCount!==1?'s':''} saved successfully in \${elapsed}s\`;
     document.getElementById('done-success').textContent = successCount;
     document.getElementById('done-failed').textContent  = failedCount;
     document.getElementById('done-time').textContent    = elapsed + 's';
     document.getElementById('done-path').textContent    = writeDirName;
     document.getElementById('done-path-card').style.display = 'flex';
-    document.getElementById('step3-sub').textContent = \`\${successCount} \${unitWord}\${successCount!==1?'s':''} saved to \${writeDirName}\`;
+    document.getElementById('step3-sub').textContent = \`\${successCount} file\${successCount!==1?'s':''} saved to \${writeDirName}\`;
 
     // Show failed items with reasons
     var errList = document.getElementById('done-error-list');
