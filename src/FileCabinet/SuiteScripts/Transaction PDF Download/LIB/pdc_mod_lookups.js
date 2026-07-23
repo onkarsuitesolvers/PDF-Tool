@@ -65,11 +65,19 @@ define(
    * @returns {{ id: number, name: string, parentId: number|null }[]}
    */
   const fetchFolders = () => {
-    return folderCache.get({
-      key:    CACHE_KEY,
-      loader: searchFolders,
-      ttl:    CACHE_TTL
-    }) || [];
+    try {
+      return folderCache.get({
+        key:    CACHE_KEY,
+        loader: searchFolders,
+        ttl:    CACHE_TTL
+      }) || [];
+    } catch (e) {
+      // N/cache rejects any value over 512 KB. Large accounts can outgrow
+      // that cap, so fall back to an uncached (but working) search instead
+      // of failing the whole page.
+      log.error({ title: 'lookups:fetchFolders', details: 'Cache write failed, serving uncached: ' + e.message });
+      return searchFolders();
+    }
   };
 
   /**
