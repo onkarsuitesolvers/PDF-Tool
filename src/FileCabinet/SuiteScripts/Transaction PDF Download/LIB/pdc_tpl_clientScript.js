@@ -758,10 +758,23 @@ function setProgress(done, total, label) {
   }
 }
 
+// Strips characters the File System Access API / OS filesystems reject
+// (path separators, ':', '*', '?', '"', '<', '>', '|', control chars) so
+// getFileHandle() doesn't throw "Name is not allowed" on names such as
+// "Receipt - PGSO/IDJK16418" or a timestamped "...T03:28:13.101Z....csv".
+function sanitizeFilename(name) {
+  var s = String(name == null ? '' : name);
+  s = s.replace(/[\\/\\\\:*?"<>|\\u0000-\\u001F]/g, '_'); // invalid chars -> underscore
+  s = s.replace(/^[ .]+/, '').replace(/[ .]+$/, '');      // no leading/trailing dots or spaces
+  if (!s) s = 'file';
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\\..*)?$/i.test(s)) s = '_' + s; // reserved device names
+  return s;
+}
+
 function buildFilename(item) {
   const prefix = (document.getElementById('f-prefix').value || '').replace(/[^a-zA-Z0-9_\\-]/g, '_');
   const base   = item.name || ('file_' + item.id);
-  return prefix ? \`\${prefix}\${base}\` : base;
+  return sanitizeFilename(prefix ? \`\${prefix}\${base}\` : base);
 }
 
 /* ─────────────────────────────────────────
