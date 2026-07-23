@@ -7,34 +7,34 @@
  * explicit search action, table/pagination, modal, download orchestrator,
  * File System Access API, concurrency limiter, row renderer, etc.
  *
- * Server-injected values: baseUrl, folderDataFieldId
+ * Server-injected values: baseUrl
  */
 define([], () => {
 
   /**
-   * @param {string} baseUrl           Suitelet base URL
-   * @param {string} folderDataFieldId ID of the hidden form field holding the
-   *                                   folder lookup JSON (see pdc_SL_main.js)
+   * @param {string} baseUrl  Suitelet base URL
    * @returns {string} Complete <script> block content
    */
-  const getScript = (baseUrl, folderDataFieldId) => `
-/* ── Server-side lookup data ──
-   Read from a hidden form field rather than embedded directly in this
-   script: the folder list grows with the account's File Cabinet and
-   NetSuite caps any single field's value at 512 KB, so it's kept out of
-   this (already large) page-shell string and stored in its own field. */
-const __LOOKUPS__ = {
-  folders: (function () {
-    try {
-      var el = document.getElementById('${folderDataFieldId}');
-      return el ? (JSON.parse(el.value || '[]')) : [];
-    } catch (e) {
-      return [];
-    }
-  })()
-};
-
+  const getScript = (baseUrl) => `
 'use strict';
+
+/* ── Server-side lookup data ──
+   Fetched via action=getLookups rather than embedded server-side: the
+   folder list grows with the account's File Cabinet and NetSuite's
+   LONGTEXT field type caps out at 100,000 characters, which large
+   accounts can exceed. */
+async function fetchFolderLookups() {
+  try {
+    const resp = await fetch('${baseUrl}&action=getLookups');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error || 'Unknown error');
+    return data.folders || [];
+  } catch (e) {
+    console.error('[PDC] fetchFolderLookups failed:', e);
+    return [];
+  }
+}
 
 /* ─────────────────────────────────────────
    TOAST NOTIFICATIONS
@@ -596,10 +596,11 @@ function msGetValues(key) {
 /* ─────────────────────────────────────────
    INIT
 ───────────────────────────────────────── */
-(function init() {
+(async function init() {
   fsSAPIEnabled = ('showDirectoryPicker' in window);
 
-  FOLDER_TREE = buildFolderTree(__LOOKUPS__.folders || []);
+  const folders = await fetchFolderLookups();
+  FOLDER_TREE = buildFolderTree(folders);
   renderFolderTree();
 
   msSetOptions('filetype', FILE_TYPE_OPTIONS);
