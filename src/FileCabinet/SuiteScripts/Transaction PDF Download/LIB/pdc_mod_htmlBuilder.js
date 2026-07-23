@@ -22,7 +22,7 @@ define(
    * Build the complete HTML page string for the Print & Download Center.
    *
    * @param {string}   baseUrl       Suitelet base URL (for client-side fetch calls)
-   * @param {Object[]} folders       File Cabinet folder lookup data [{ id, label }, …]
+   * @param {Object[]} folders       File Cabinet folder lookup data [{ id, name, parentId }, …]
    * @returns {string}  Full HTML document
    */
   const buildHTML = (baseUrl, folders) => {

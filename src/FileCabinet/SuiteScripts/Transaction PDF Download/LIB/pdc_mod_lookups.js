@@ -4,7 +4,7 @@
  *
  * ─────────────────────────────────────────────────────────────────────────────
  *  PDC — Lookups (action=getLookups + inline page data)
- *  Fetches File Cabinet folder dropdown data.
+ *  Fetches File Cabinet folder data for the client-side folder tree.
  *  Used both by the getLookups API action and by servePage (server-side embed).
  * ─────────────────────────────────────────────────────────────────────────────
  */
@@ -13,14 +13,16 @@ define(
   (search, log, qh) => {
 
   /**
-   * Fetch all File Cabinet folders, sorted by full path.
+   * Fetch all File Cabinet folders as a flat list with parent pointers.
+   * The client rebuilds the hierarchy into a tree (rather than the server
+   * flattening it into breadcrumb strings) so the UI can render an
+   * expandable/collapsible folder tree with multi-select.
    * Uses N/search (folder record type) rather than SuiteQL since folder
    * hierarchy is not reliably exposed as a SuiteQL table.
-   * Label is built as the full breadcrumb path, e.g. "Documents / Invoices".
-   * @returns {{ id: number, label: string }[]}
+   * @returns {{ id: number, name: string, parentId: number|null }[]}
    */
   const fetchFolders = () => {
-    const raw = {}; // id -> { name, parentId }
+    const folders = [];
     try {
       const folderSearch = search.create({
         type: 'folder',
@@ -34,10 +36,11 @@ define(
       pagedData.pageRanges.forEach((range) => {
         const page = pagedData.fetch({ index: range.index });
         page.data.forEach((result) => {
-          raw[result.id] = {
+          folders.push({
+            id:       parseInt(result.id, 10),
             name:     result.getValue('name') || ('Folder ' + result.id),
-            parentId: result.getValue('parent') || null
-          };
+            parentId: result.getValue('parent') ? parseInt(result.getValue('parent'), 10) : null
+          });
         });
       });
     } catch (e) {
@@ -45,24 +48,6 @@ define(
       return [];
     }
 
-    const buildPath = (id) => {
-      const segments = [];
-      let curId = id;
-      let guard = 0;
-      while (curId && raw[curId] && guard < 25) {
-        segments.unshift(raw[curId].name);
-        curId = raw[curId].parentId;
-        guard++;
-      }
-      return segments.join(' / ');
-    };
-
-    const folders = Object.keys(raw).map((id) => ({
-      id:    parseInt(id, 10),
-      label: buildPath(id)
-    }));
-
-    folders.sort((a, b) => a.label.localeCompare(b.label));
     return folders;
   };
 

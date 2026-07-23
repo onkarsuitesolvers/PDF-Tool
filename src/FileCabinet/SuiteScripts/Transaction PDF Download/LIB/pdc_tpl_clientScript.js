@@ -3,8 +3,9 @@
  * @NModuleScope SameAccount
  *
  * PDC — Client-Side JavaScript Template
- * All browser-side logic: folder/file search, multiselect, modal, download
- * orchestrator, File System Access API, concurrency limiter, row renderer, etc.
+ * All browser-side logic: folder tree (multi-select), file-type multiselect,
+ * explicit search action, table/pagination, modal, download orchestrator,
+ * File System Access API, concurrency limiter, row renderer, etc.
  *
  * Server-injected values: baseUrl, folders
  */
@@ -12,7 +13,7 @@ define([], () => {
 
   /**
    * @param {string} baseUrl    Suitelet base URL
-   * @param {Object[]} folders  Lookup data for File Cabinet folder multiselect
+   * @param {Object[]} folders  Flat File Cabinet folder list [{ id, name, parentId }, …]
    * @returns {string} Complete <script> block content
    */
   const getScript = (baseUrl, folders) => `
@@ -104,40 +105,208 @@ const FILE_TYPE_OPTIONS = [
 ];
 
 /* ─────────────────────────────────────────
+   FOLDER TREE  (multi-select, tri-state)
+   Selection here never triggers a search by
+   itself — the user must click "Search Files".
+───────────────────────────────────────── */
+let FOLDER_TREE = { roots: [], byId: {}, order: [] };
+let folderFilterQuery = '';
+
+function buildFolderTree(flatFolders) {
+  const byId = {};
+  flatFolders.forEach((f) => {
+    byId[f.id] = {
+      id: f.id, name: f.name, parentId: f.parentId || null,
+      children: [], depth: 0,
+      checked: false, indeterminate: false, expanded: false,
+      match: false, hasMatchDescendant: false, visible: true
+    };
+  });
+
+  const roots = [];
+  Object.keys(byId).forEach((key) => {
+    const node = byId[key];
+    if (node.parentId && byId[node.parentId]) {
+      byId[node.parentId].children.push(node);
+    } else {
+      roots.push(node);
+    }
+  });
+
+  const sortAndDepth = (node, depth) => {
+    node.depth = depth;
+    node.children.sort((a, b) => a.name.localeCompare(b.name));
+    node.children.forEach((c) => sortAndDepth(c, depth + 1));
+  };
+  roots.sort((a, b) => a.name.localeCompare(b.name));
+  roots.forEach((r) => sortAndDepth(r, 0));
+
+  const order = [];
+  const visit = (node) => { order.push(node); node.children.forEach(visit); };
+  roots.forEach(visit);
+
+  return { roots, byId, order };
+}
+
+function markMatches(node, q) {
+  node.match = node.name.toLowerCase().indexOf(q) !== -1;
+  let childMatch = false;
+  node.children.forEach((c) => { if (markMatches(c, q)) childMatch = true; });
+  node.hasMatchDescendant = childMatch;
+  return node.match || childMatch;
+}
+
+function computeFolderVisibility() {
+  const filterActive = !!folderFilterQuery;
+  if (filterActive) {
+    FOLDER_TREE.roots.forEach((r) => markMatches(r, folderFilterQuery));
+    FOLDER_TREE.order.forEach((node) => { node.visible = node.match || node.hasMatchDescendant; });
+  } else {
+    FOLDER_TREE.order.forEach((node) => {
+      let visible = true;
+      let p = node.parentId;
+      while (p != null) {
+        const pn = FOLDER_TREE.byId[p];
+        if (!pn || !pn.expanded) { visible = false; break; }
+        p = pn.parentId;
+      }
+      node.visible = visible;
+    });
+  }
+}
+
+function renderFolderTree() {
+  const root = document.getElementById('folder-tree-root');
+  if (!root) return;
+
+  if (FOLDER_TREE.order.length === 0) {
+    root.innerHTML = '<div class="tree-empty">No folders found</div>';
+    updateFolderSelectedSummary();
+    return;
+  }
+
+  computeFolderVisibility();
+
+  const filterActive = !!folderFilterQuery;
+  root.innerHTML = FOLDER_TREE.order.map((node) => {
+    const hasChildren  = node.children.length > 0;
+    const effExpanded  = filterActive ? !!node.hasMatchDescendant : node.expanded;
+    const toggleClass  = hasChildren ? ('tree-toggle' + (effExpanded ? ' tree-expanded' : '')) : 'tree-toggle tree-toggle-empty';
+    const rowClass     = 'tree-row' + (filterActive && node.match ? ' tree-match' : '');
+    const indent       = 6 + node.depth * 18;
+
+    return '<div class="' + rowClass + '" id="tree-row-' + node.id + '" style="display:' + (node.visible ? 'flex' : 'none') + ';padding-left:' + indent + 'px">'
+      + '<span class="' + toggleClass + '" onclick="toggleFolderExpand(\\'' + node.id + '\\')">'
+      + (hasChildren ? '<svg width="9" height="9" viewBox="0 0 9 9" fill="none"><path d="M2 1l4 3.5L2 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '')
+      + '</span>'
+      + '<input type="checkbox" class="tree-checkbox" id="tree-cb-' + node.id + '" onclick="onFolderCheckboxClick(\\'' + node.id + '\\')" ' + (node.checked ? 'checked' : '') + '/>'
+      + '<span class="tree-folder-icon">📁</span>'
+      + '<span class="tree-label" title="' + escHtml(node.name) + '" onclick="onFolderCheckboxClick(\\'' + node.id + '\\')">' + escHtml(node.name) + '</span>'
+      + '</div>';
+  }).join('');
+
+  FOLDER_TREE.order.forEach((node) => {
+    const cb = document.getElementById('tree-cb-' + node.id);
+    if (cb) cb.indeterminate = !!node.indeterminate && !node.checked;
+  });
+
+  updateFolderSelectedSummary();
+}
+
+function toggleFolderExpand(id) {
+  const node = FOLDER_TREE.byId[id];
+  if (!node) return;
+  node.expanded = !node.expanded;
+  renderFolderTree();
+}
+
+function onFolderFilterInput(val) {
+  folderFilterQuery = (val || '').trim().toLowerCase();
+  renderFolderTree();
+}
+
+function setFolderNodeChecked(node, checked) {
+  node.checked = checked;
+  node.indeterminate = false;
+  node.children.forEach((c) => setFolderNodeChecked(c, checked));
+}
+
+function updateFolderAncestors(node) {
+  let p = node.parentId != null ? FOLDER_TREE.byId[node.parentId] : null;
+  while (p) {
+    const allChecked = p.children.every((c) => c.checked);
+    const noneChecked = p.children.every((c) => !c.checked && !c.indeterminate);
+    p.checked = allChecked;
+    p.indeterminate = !allChecked && !noneChecked;
+    p = p.parentId != null ? FOLDER_TREE.byId[p.parentId] : null;
+  }
+}
+
+function onFolderCheckboxClick(id) {
+  const node = FOLDER_TREE.byId[id];
+  if (!node) return;
+  const newChecked = !node.checked;
+  setFolderNodeChecked(node, newChecked);
+  updateFolderAncestors(node);
+  renderFolderTree();
+}
+
+function folderSelectAll() {
+  FOLDER_TREE.roots.forEach((r) => setFolderNodeChecked(r, true));
+  renderFolderTree();
+}
+
+function folderClearAll() {
+  FOLDER_TREE.roots.forEach((r) => setFolderNodeChecked(r, false));
+  renderFolderTree();
+}
+
+function getSelectedFolderIds() {
+  return FOLDER_TREE.order.filter((n) => n.checked).map((n) => n.id);
+}
+
+function updateFolderSelectedSummary() {
+  const el = document.getElementById('folder-selected-summary');
+  if (!el) return;
+  const n = getSelectedFolderIds().length;
+  el.textContent = n === 0 ? '0 folders selected' : (n + ' folder' + (n !== 1 ? 's' : '') + ' selected');
+}
+
+/* ─────────────────────────────────────────
    SEARCH  →  action=getFiles
+   Only ever fires from the explicit "Search
+   Files" button — folder/file-type/date
+   selections never trigger it on their own.
    ROWNUM pagination on server, client fetches
    page-by-page with live progress & exact counts.
 ───────────────────────────────────────── */
 const FILE_SEARCH_PAGE_SIZE = 1000; // matches server PAGE_SIZE in pdc_mod_files.js
 
-/* ── Search progress overlay helpers ── */
 function showSearchProgress() {
   hideSearchProgress();
   var overlay = document.createElement('div');
   overlay.id = 'search-progress-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:99999;';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(19,27,51,0.4);display:flex;align-items:center;justify-content:center;z-index:99999;';
   var box = document.createElement('div');
-  box.style.cssText = 'background:#fff;border-radius:12px;padding:2rem 2.5rem;box-shadow:0 8px 32px rgba(0,0,0,0.18);text-align:center;min-width:380px;';
+  box.style.cssText = 'background:#fff;border-radius:14px;padding:2rem 2.5rem;box-shadow:0 8px 32px rgba(19,27,51,0.22);text-align:center;min-width:380px;';
   var spinner = document.createElement('div');
-  spinner.style.cssText = 'width:48px;height:48px;border:4px solid #e0e0e0;border-top:4px solid #4d5f79;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 1rem auto;';
+  spinner.style.cssText = 'width:44px;height:44px;border:4px solid #E2E7F0;border-top:4px solid #3D5AFE;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 1rem auto;';
   box.appendChild(spinner);
   var title = document.createElement('div');
   title.id = 'search-progress-title';
-  title.style.cssText = 'font-size:1.1rem;font-weight:600;color:#4d5f79;margin-bottom:0.75rem;';
-  title.textContent = 'Extracting search results...';
+  title.style.cssText = 'font-size:1.05rem;font-weight:700;color:#131B33;margin-bottom:0.75rem;';
+  title.textContent = 'Searching files...';
   box.appendChild(title);
-  // Progress bar
   var barOuter = document.createElement('div');
-  barOuter.style.cssText = 'width:100%;height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden;margin-bottom:0.5rem;';
+  barOuter.style.cssText = 'width:100%;height:8px;background:#E2E7F0;border-radius:4px;overflow:hidden;margin-bottom:0.5rem;';
   var barInner = document.createElement('div');
   barInner.id = 'search-progress-bar';
-  barInner.style.cssText = 'width:0%;height:100%;background:linear-gradient(90deg,#4d5f79,#6b8cae);border-radius:4px;transition:width 0.3s ease;';
+  barInner.style.cssText = 'width:0%;height:100%;background:linear-gradient(90deg,#3D5AFE,#6B84FF);border-radius:4px;transition:width 0.3s ease;';
   barOuter.appendChild(barInner);
   box.appendChild(barOuter);
-  // Status text
   var status = document.createElement('div');
   status.id = 'search-progress-status';
-  status.style.cssText = 'font-size:0.85rem;color:#666;';
+  status.style.cssText = 'font-size:0.85rem;color:#4C5670;font-weight:600;';
   status.textContent = 'Starting search...';
   box.appendChild(status);
   overlay.appendChild(box);
@@ -150,8 +319,8 @@ function updateSearchProgress(fetched, total, typeLabel) {
   var title = document.getElementById('search-progress-title');
   var pct = total > 0 ? Math.round((fetched / total) * 100) : 0;
   if (bar) bar.style.width = pct + '%';
-  if (status) status.textContent = 'Extracted ' + fetched + ' of ' + total + ' records' + (typeLabel ? ' (' + typeLabel + ')' : '');
-  if (title) title.textContent = 'Extracting search results... ' + pct + '%';
+  if (status) status.textContent = 'Found ' + fetched + ' of ' + total + ' records' + (typeLabel ? ' (' + typeLabel + ')' : '');
+  if (title) title.textContent = 'Searching files... ' + pct + '%';
 }
 
 function hideSearchProgress() {
@@ -160,9 +329,9 @@ function hideSearchProgress() {
 }
 
 async function runSearch() {
-  var folderIds = msGetValues('folder');
+  var folderIds = getSelectedFolderIds();
   if (folderIds.length === 0) {
-    showToast('Please select at least one folder to search', 'warning');
+    showToast('Please select at least one folder in the tree before searching', 'warning');
     return;
   }
 
@@ -224,7 +393,7 @@ async function runSearch() {
   } catch (e) {
     console.error('[PDC runSearch] Error:', e);
     var tbody = document.getElementById('inv-tbody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#c00;padding:1rem;">Search failed: ' + (e.message || 'Unknown error') + '</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#E11D48;padding:1rem;">Search failed: ' + (e.message || 'Unknown error') + '</td></tr>';
     document.getElementById('table-container').classList.add('show');
     document.getElementById('empty-state').classList.remove('show');
   } finally {
@@ -235,15 +404,13 @@ async function runSearch() {
 }
 
 /* ─────────────────────────────────────────
-   MULTISELECT WIDGET
+   MULTISELECT WIDGET  (File Type only)
 ───────────────────────────────────────── */
 const MS_STATE = {
-  folder:   { options: [], selected: new Set(), open: false },
   filetype: { options: [], selected: new Set(), open: false }
 };
 
 const MS_PLACEHOLDERS = {
-  folder:   'All Folders',
   filetype: 'All File Types'
 };
 
@@ -253,7 +420,6 @@ function msToggle(key) {
   if (state.open) {
     msClose(key);
   } else {
-    // Close all others first
     Object.keys(MS_STATE).forEach(k => { if (k !== key) msClose(k); });
     state.open = true;
     wrap.classList.add('open');
@@ -272,10 +438,9 @@ function msClose(key) {
   dd.style.display = 'none';
   dd.style.visibility = 'hidden';
   document.getElementById(\`ms-\${key}-search\`).value = '';
-  msFilter(key); // reset filter
+  msFilter(key);
 }
 
-// Close on outside click
 document.addEventListener('click', (e) => {
   Object.keys(MS_STATE).forEach(key => {
     const wrap = document.getElementById(\`ms-\${key}-wrap\`);
@@ -310,7 +475,6 @@ function msRenderList(key, options) {
     return \`<div class="ms-option\${isSel ? ' selected' : ''}" onclick="msToggleOption('\${key}','\${o.id}',this)">
       <input type="checkbox" \${isSel ? 'checked' : ''} onclick="event.stopPropagation();msToggleOption('\${key}','\${o.id}',this.closest('.ms-option'))"/>
       <span class="ms-option-label">\${escHtml(o.label)}</span>
-      \${key === 'filetype' ? '' : \`<span class="ms-option-sub">#\${o.id}</span>\`}
     </div>\`;
   }).join('');
 }
@@ -344,7 +508,6 @@ function msUpdateTrigger(key) {
 
   countEl.textContent = n === 0 ? '0 selected' : \`\${n} selected\`;
 
-  // Rebuild pills (keep arrow in place by removing only pills/placeholder)
   const arrow = trigger.querySelector('.ms-arrow');
   trigger.innerHTML = '';
   trigger.appendChild(arrow);
@@ -398,8 +561,9 @@ function msGetValues(key) {
 (function init() {
   fsSAPIEnabled = ('showDirectoryPicker' in window);
 
-  // Populate multiselect dropdowns
-  msSetOptions('folder',   __LOOKUPS__.folders || []);
+  FOLDER_TREE = buildFolderTree(__LOOKUPS__.folders || []);
+  renderFolderTree();
+
   msSetOptions('filetype', FILE_TYPE_OPTIONS);
 
   // Default "Date Created" range: last 90 days
@@ -568,14 +732,11 @@ async function downloadSingle(id, name) {
    RENDER TABLE
 ───────────────────────────────────────── */
 function renderTable(list) {
-  // Re-attach cb-all after thead was rewritten
   const cbAll = document.getElementById('cb-all');
   if (cbAll) cbAll.onchange = function() { onSelectAll(this); };
 
-  // Init rowStatus for ALL items
   list.forEach((item) => { rowStatus[item.id] = 'pending'; });
 
-  // Reset pagination and selection
   currentTablePage = 1;
   allSelected = false;
   selectedIds.clear();
@@ -584,13 +745,12 @@ function renderTable(list) {
   renderTablePage();
 }
 
-/* ── Render only the current page slice ── */
 function renderTablePage() {
   const tbody = document.getElementById('inv-tbody');
   tbody.innerHTML = '';
 
   const total = files.length;
-  const isAllMode = rowsPerPage === 0; // 0 = show all
+  const isAllMode = rowsPerPage === 0;
   const perPage = isAllMode ? total : rowsPerPage;
   const totalPages = isAllMode ? 1 : Math.max(1, Math.ceil(total / perPage));
 
@@ -602,27 +762,22 @@ function renderTablePage() {
 
   pageSlice.forEach((item) => tbody.appendChild(renderFileRow(item)));
 
-  // Restore checkbox state for visible rows
   document.querySelectorAll('.row-cb').forEach(cb => {
     const id = cb.dataset.id;
     cb.checked = allSelected || selectedIds.has(id);
   });
 
-  // Sync header checkbox
   const cbAll = document.getElementById('cb-all');
   if (cbAll) {
     const visibleCbs = document.querySelectorAll('.row-cb');
     cbAll.checked = visibleCbs.length > 0 && [...visibleCbs].every(c => c.checked);
   }
 
-  // Update download button state
   onRowCheck();
 
-  // Render pagination controls
   renderPaginationControls(total, totalPages, startIdx, endIdx);
 }
 
-/* ── Pagination controls renderer ── */
 function renderPaginationControls(total, totalPages, startIdx, endIdx) {
   const container = document.getElementById('pagination-controls');
   if (!container) return;
@@ -630,13 +785,11 @@ function renderPaginationControls(total, totalPages, startIdx, endIdx) {
   if (total <= 0) { container.style.display = 'none'; return; }
   container.style.display = 'flex';
 
-  // Rows per page options
   const options = [25, 50, 100, 250, 500];
   const optionsHtml = options.map(n =>
     \`<option value="\${n}" \${rowsPerPage === n ? 'selected' : ''}>\${n}</option>\`
   ).join('') + \`<option value="0" \${rowsPerPage === 0 ? 'selected' : ''}>All</option>\`;
 
-  // Page buttons
   let pagesHtml = '';
   if (totalPages > 1) {
     pagesHtml += \`<button class="pg-btn" \${currentTablePage <= 1 ? 'disabled' : ''} onclick="goToTablePage(1)" title="First page">&laquo;</button>\`;
@@ -667,7 +820,6 @@ function renderPaginationControls(total, totalPages, startIdx, endIdx) {
   \`;
 }
 
-/* ── Compute which page numbers to show ── */
 function getVisiblePages(current, total) {
   if (total <= 7) return Array.from({length: total}, (_, i) => i + 1);
   const pages = [];
@@ -688,7 +840,6 @@ function goToTablePage(page) {
   if (page < 1 || page > totalPages) return;
   currentTablePage = page;
   renderTablePage();
-  // Scroll table to top
   const scroll = document.querySelector('.table-scroll');
   if (scroll) scroll.scrollTop = 0;
 }
@@ -705,7 +856,6 @@ function applyCustomRows(val) {
   if (!n || n < 1) return;
   rowsPerPage = n;
   currentTablePage = 1;
-  // Update dropdown to deselect preset if custom value doesn't match
   const sel = document.querySelector('.pg-rows-select');
   if (sel) {
     const match = [...sel.options].find(o => parseInt(o.value, 10) === n);
@@ -714,7 +864,6 @@ function applyCustomRows(val) {
   renderTablePage();
 }
 
-/* ── File row ── */
 function renderFileRow(item) {
   const tr = document.createElement('tr');
   tr.id = 'row-' + item.id;
@@ -736,7 +885,7 @@ function renderFileRow(item) {
         </button>
         <div class="dl-status" style="min-width:72px">
           <span class="status-dot dot-pending" id="row-dot-\${item.id}"></span>
-          <span id="row-lbl-\${item.id}" style="color:var(--text-muted);font-size:11.5px">Pending</span>
+          <span id="row-lbl-\${item.id}" style="color:var(--ink-faint);font-size:11.5px">Pending</span>
         </div>
       </div>
     </td>
@@ -745,7 +894,7 @@ function renderFileRow(item) {
 }
 
 /* ─────────────────────────────────────────
-   SELECTION HELPERS
+   SELECTION HELPERS  (result rows)
 ───────────────────────────────────────── */
 function getSelectedFiles() {
   if (allSelected) return files;
@@ -753,7 +902,6 @@ function getSelectedFiles() {
 }
 
 function onRowCheck() {
-  // Sync selectedIds with visible checkboxes
   document.querySelectorAll('.row-cb').forEach(cb => {
     const id = cb.dataset.id;
     if (cb.checked) {
@@ -764,14 +912,12 @@ function onRowCheck() {
     }
   });
 
-  // Update header checkbox
   const visibleCbs = document.querySelectorAll('.row-cb');
   const cbAll = document.getElementById('cb-all');
   if (cbAll && visibleCbs.length > 0) {
     cbAll.checked = [...visibleCbs].every(c => c.checked);
   }
 
-  // Update download button
   const anySelected = allSelected || selectedIds.size > 0;
   document.getElementById('btn-dl-selected').disabled = !anySelected;
 }
@@ -968,7 +1114,6 @@ async function downloadOneFile(item) {
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   const ct = resp.headers.get('Content-Type') || '';
   if (ct.includes('json')) {
-    // A JSON body here means the server returned an error payload instead of the file.
     const txt = await resp.text();
     try { const obj = JSON.parse(txt); throw new Error(obj.error || txt); }
     catch (_) { throw new Error(txt.slice(0, 120)); }
@@ -983,7 +1128,6 @@ async function downloadOneFile(item) {
 async function writeFileToFolder(handle, filename, buffer, mime) {
   mime = mime || 'application/octet-stream';
   if (!handle || !handle.getFileHandle) {
-    // Fallback: trigger browser download if FS API handle is not available
     const blob = new Blob([buffer], { type: mime });
     const a    = document.createElement('a');
     a.href     = URL.createObjectURL(blob);
@@ -1031,17 +1175,17 @@ function togglePause() {
   if (paused) {
     btn.innerHTML = '<svg width="11" height="11" fill="none" viewBox="0 0 11 11"><path d="M2 2l7 4-7 4z" fill="currentColor"/></svg> Resume';
     btn.className = 'ctrl-btn';
-    pill.style.background = '#E8923A22';
-    pill.style.borderColor = '#F0B87A44';
+    pill.style.background = '#D68A0E22';
+    pill.style.borderColor = '#F0C97D44';
     statusText.textContent = 'Paused';
-    pulse.style.background = 'var(--amber)';
+    pulse.style.background = 'var(--accent)';
   } else {
     btn.innerHTML = '<svg width="11" height="11" fill="none" viewBox="0 0 11 11"><rect x="1.5" y="1" width="3" height="9" rx="1" fill="currentColor"/><rect x="6.5" y="1" width="3" height="9" rx="1" fill="currentColor"/></svg> Pause';
     btn.className = 'ctrl-btn ctrl-pause';
-    pill.style.background = '#2E9E9E33';
-    pill.style.borderColor = '#4DC8C844';
+    pill.style.background = '#3D5AFE30';
+    pill.style.borderColor = '#6B84FF44';
     statusText.textContent = 'Active';
-    pulse.style.background = 'var(--teal-glow)';
+    pulse.style.background = '#6B84FF';
   }
 }
 
@@ -1068,7 +1212,6 @@ async function startDownload() {
   const total          = selected.length;
   const dirName        = dirHandle ? dirHandle.name : 'Downloads';
 
-  // Resolve actual write target (may be a date subfolder if toggle is on)
   let writeHandle = await resolveWriteTarget(dirHandle);
   const writeDirName = (writeHandle && writeHandle.name) ? writeHandle.name : dirName;
 
@@ -1081,11 +1224,9 @@ async function startDownload() {
   downloading  = true;
   dlStartTime  = Date.now();
 
-  // Reset row statuses
   selected.forEach(item => setRowStatus(item.id, 'pending'));
   setStats(total, 0, 0);
 
-  // Update step 2 UI
   document.getElementById('dest-path-display').textContent = writeDirName;
   document.getElementById('step2-sub').textContent = \`Saving \${total} File\${total!==1?'s':''} — concurrency: \${concur}\`;
   document.getElementById('concur-val').textContent = concur;
@@ -1093,13 +1234,11 @@ async function startDownload() {
   document.getElementById('dl-hero-sub').textContent  = \`\${total} file\${total!==1?'s':''} · concurrency \${concur}\`;
   setProgress(0, total, 'Starting…');
 
-  // Go to step 2
   goToStep(2);
 
   const done = { n: 0 };
 
   const tasks = selected.map(item => async () => {
-    // Wait while paused
     while (paused && !cancelled) {
       await new Promise(r => setTimeout(r, 200));
     }
@@ -1116,7 +1255,6 @@ async function startDownload() {
       const ms = Date.now() - t0;
       const kbps = ms > 0 ? Math.round(buffer.byteLength / ms) : 0;
 
-      // Update speed display
       document.getElementById('dm-speed').textContent  = kbps + ' KB/s';
       document.getElementById('speed-disp').textContent = kbps + ' KB/s';
 
@@ -1156,11 +1294,10 @@ async function startDownload() {
   if (cancelled) {
     closeModal();
   } else {
-    // Go to step 3
     const hasErrors = failedCount > 0;
     document.getElementById('done-icon').textContent  = hasErrors ? '⚠️' : '✅';
     document.getElementById('done-title').innerHTML   = hasErrors
-      ? \`Download <em style="color:var(--amber)">Finished</em>\`
+      ? \`Download <em style="color:var(--accent-dark)">Finished</em>\`
       : \`Files <em>Saved</em>\`;
     document.getElementById('done-sub').textContent   = hasErrors
       ? \`\${successCount} succeeded, \${failedCount} failed\`
@@ -1172,7 +1309,6 @@ async function startDownload() {
     document.getElementById('done-path-card').style.display = 'flex';
     document.getElementById('step3-sub').textContent = \`\${successCount} file\${successCount!==1?'s':''} saved to \${writeDirName}\`;
 
-    // Show failed items with reasons
     var errList = document.getElementById('done-error-list');
     var errItems = document.getElementById('done-error-items');
     if (hasErrors && failedItems.length > 0) {
