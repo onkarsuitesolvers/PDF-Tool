@@ -14,14 +14,17 @@ define([], () => {
    * @param {string} baseUrl       Suitelet base URL
    * @param {Object[]} customers   Lookup data for customer multiselect
    * @param {Object[]} subsidiaries Lookup data for subsidiary multiselect
+   * @param {Object[]} departments Lookup data for department multiselect
+   * @param {Object[]} folders     Lookup data for File Cabinet folder multiselect (Folder mode)
    * @returns {string} Complete <script> block content
    */
-  const getScript = (baseUrl, customers, subsidiaries, departments) => `
+  const getScript = (baseUrl, customers, subsidiaries, departments, folders) => `
 /* ── Server-side lookup data (embedded at render time) ── */
 const __LOOKUPS__ = {
   customers:    ${JSON.stringify(customers)},
   subsidiaries: ${JSON.stringify(subsidiaries)},
-  departments:  ${JSON.stringify(departments)}
+  departments:  ${JSON.stringify(departments)},
+  folders:      ${JSON.stringify(folders)}
 };
 
 'use strict';
@@ -102,6 +105,7 @@ let failedItems   = [];
 const rowStatus   = {};
 let currentPage   = 'invoices'; // 'invoices' | 'creditmemos' | 'invoicegroups'
 let csvTranIds    = null;       // Array of tranid strings when CSV search is active
+let currentMode   = 'transactions'; // 'transactions' | 'folder'
 
 /* ── Pagination state ── */
 let currentTablePage = 1;
@@ -184,6 +188,39 @@ const PAGE_CONFIG = {
 };
 
 /* ─────────────────────────────────────────
+   FOLDER MODE CONFIG
+───────────────────────────────────────── */
+const FILE_TYPE_OPTIONS = [
+  { id: 'PDF',        label: 'PDF' },
+  { id: 'WORD',       label: 'Word Document' },
+  { id: 'EXCEL',      label: 'Excel Spreadsheet' },
+  { id: 'POWERPOINT', label: 'PowerPoint' },
+  { id: 'CSV',        label: 'CSV' },
+  { id: 'PLAINTEXT',  label: 'Plain Text' },
+  { id: 'HTMLDOC',    label: 'HTML' },
+  { id: 'XMLDOC',     label: 'XML' },
+  { id: 'JPGIMAGE',   label: 'JPEG Image' },
+  { id: 'PNGIMAGE',   label: 'PNG Image' },
+  { id: 'GIFIMAGE',   label: 'GIF Image' },
+  { id: 'ZIP',        label: 'ZIP Archive' },
+  { id: 'JSON',       label: 'JSON' }
+];
+
+const TRAN_COLGROUP_HTML = \`
+  <col style="width:3%"><col style="width:9%"><col style="width:3%"><col style="width:9%">
+  <col style="width:17%"><col style="width:8%"><col style="width:8%"><col style="width:10%">
+  <col style="width:13%"><col style="width:10%">
+\`;
+const FOLDER_COLGROUP_HTML = \`
+  <col style="width:4%"><col style="width:26%"><col style="width:20%"><col style="width:12%">
+  <col style="width:10%"><col style="width:13%"><col style="width:15%">
+\`;
+const FOLDER_THEAD_HTML = \`<tr>
+  <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
+  <th>Name</th><th>Folder</th><th>File Type</th><th>Size</th><th>Date Created</th><th>DL Status</th>
+</tr>\`;
+
+/* ─────────────────────────────────────────
    SWITCH PAGE
 ───────────────────────────────────────── */
 function switchPage(pageId) {
@@ -217,6 +254,60 @@ function switchPage(pageId) {
   document.getElementById('empty-state').classList.remove('show');
   document.getElementById('btn-dl-selected').disabled = true;
   setStats(0, 0, 0);
+}
+
+/* ─────────────────────────────────────────
+   SWITCH MODE  (Transactions ↔ Folder)
+───────────────────────────────────────── */
+function switchMode(mode) {
+  if (mode === currentMode) return;
+  currentMode = mode;
+
+  document.getElementById('mode-tab-transactions').classList.toggle('active', mode === 'transactions');
+  document.getElementById('mode-tab-folder').classList.toggle('active', mode === 'folder');
+
+  document.getElementById('filter-bar-transactions').style.display = mode === 'transactions' ? '' : 'none';
+  document.getElementById('filter-bar-folder').style.display       = mode === 'folder' ? '' : 'none';
+  document.getElementById('csv-upload-bar').style.display          = mode === 'transactions' ? '' : 'none';
+
+  if (mode === 'folder') {
+    document.getElementById('inv-colgroup').innerHTML = FOLDER_COLGROUP_HTML;
+    document.getElementById('inv-thead').innerHTML    = FOLDER_THEAD_HTML;
+    document.getElementById('empty-icon').textContent = '📁';
+    document.getElementById('empty-text').textContent = 'No files found';
+    document.getElementById('empty-sub').textContent  = 'Select one or more folders and search';
+  } else {
+    const cfg = PAGE_CONFIG[currentPage];
+    document.getElementById('inv-colgroup').innerHTML = TRAN_COLGROUP_HTML;
+    document.getElementById('inv-thead').innerHTML    = cfg.theadHTML;
+    document.getElementById('empty-icon').textContent = cfg.emptyIcon;
+    document.getElementById('empty-text').textContent = cfg.emptyText;
+    document.getElementById('empty-sub').textContent  = cfg.emptySub;
+  }
+
+  // Reset results
+  invoices = [];
+  document.getElementById('inv-tbody').innerHTML   = '';
+  document.getElementById('table-meta').textContent = mode === 'folder' ? '0 files' : '0 transactions';
+  document.getElementById('table-container').classList.remove('show');
+  document.getElementById('empty-state').classList.remove('show');
+  document.getElementById('btn-dl-selected').disabled = true;
+  allSelected = false;
+  selectedIds.clear();
+  currentTablePage = 1;
+  setStats(0, 0, 0);
+}
+
+/**
+ * Single entry point for both search buttons — dispatches to the
+ * transaction search or the Folder-mode file search based on currentMode.
+ */
+function runSearch() {
+  if (currentMode === 'folder') {
+    doFileSearch();
+  } else {
+    doSearch();
+  }
 }
 
 /* ─────────────────────────────────────────
@@ -455,6 +546,87 @@ async function doSearch() {
 }
 
 /* ─────────────────────────────────────────
+   FOLDER MODE — FILE SEARCH
+   action=getFiles — same ROWNUM paging pattern as doSearch().
+───────────────────────────────────────── */
+const FILE_SEARCH_PAGE_SIZE = 1000; // matches server PAGE_SIZE in pdc_mod_files.js
+
+async function doFileSearch() {
+  var folderIds = msGetValues('folder');
+  if (folderIds.length === 0) {
+    showToast('Please select at least one folder to search', 'warning');
+    return;
+  }
+
+  var btn      = document.getElementById('btn-search-folder');
+  var labelEl  = document.getElementById('btn-search-folder-label');
+  var origLabel = labelEl.textContent;
+  btn.disabled = true;
+  labelEl.textContent = 'Searching...';
+
+  showSearchProgress();
+
+  try {
+    var baseParams = {
+      action:      'getFiles',
+      folder:      folderIds.join(','),
+      fileType:    msGetValues('filetype').join(','),
+      createdFrom: toISODate(document.getElementById('f-createdFrom').value),
+      createdTo:   toISODate(document.getElementById('f-createdTo').value)
+    };
+
+    var allFiles    = [];
+    var rowBegin    = 1;
+    var grandTotal  = 0;
+    var moreRecords = true;
+
+    while (moreRecords) {
+      var rowEnd = rowBegin + FILE_SEARCH_PAGE_SIZE - 1;
+      var params = new URLSearchParams(Object.assign({}, baseParams, {
+        rowBegin: rowBegin,
+        rowEnd:   rowEnd
+      }));
+
+      var resp = await fetch(BASE_URL + '&' + params.toString());
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      var data = await resp.json();
+      if (!data.success) throw new Error(data.error || 'Unknown error');
+
+      if (rowBegin === 1 && data.totalCount != null) grandTotal = data.totalCount;
+
+      var items = data.files || [];
+      allFiles = allFiles.concat(items);
+      updateSearchProgress(allFiles.length, grandTotal, 'Files');
+
+      if (items.length < FILE_SEARCH_PAGE_SIZE) moreRecords = false;
+      else rowBegin += FILE_SEARCH_PAGE_SIZE;
+    }
+
+    invoices = allFiles;
+    renderTable(invoices);
+    setStats(invoices.length, 0, 0);
+
+    if (invoices.length === 0) {
+      document.getElementById('table-container').classList.remove('show');
+      document.getElementById('empty-state').classList.add('show');
+    } else {
+      document.getElementById('empty-state').classList.remove('show');
+      document.getElementById('table-container').classList.add('show');
+    }
+  } catch (e) {
+    console.error('[PDC doFileSearch] Error:', e);
+    var tbody = document.getElementById('inv-tbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#c00;padding:1rem;">Search failed: ' + (e.message || 'Unknown error') + '</td></tr>';
+    document.getElementById('table-container').classList.add('show');
+    document.getElementById('empty-state').classList.remove('show');
+  } finally {
+    hideSearchProgress();
+    btn.disabled = false;
+    labelEl.textContent = origLabel;
+  }
+}
+
+/* ─────────────────────────────────────────
    CSV UPLOAD SEARCH
 ───────────────────────────────────────── */
 async function doCSVSearch() {
@@ -524,7 +696,19 @@ const MS_STATE = {
   customer:   { options: [], selected: new Set(), open: false },
   department: { options: [], selected: new Set(), open: false },
   subsidiary: { options: [], selected: new Set(), open: false },
-  status:     { options: [], selected: new Set(), open: false }
+  status:     { options: [], selected: new Set(), open: false },
+  folder:     { options: [], selected: new Set(), open: false },
+  filetype:   { options: [], selected: new Set(), open: false }
+};
+
+const MS_PLACEHOLDERS = {
+  customer:   'All Customers',
+  trantype:   'All Transaction Types',
+  status:     'All Statuses',
+  subsidiary: 'All Subsidiaries',
+  department: 'All Departments',
+  folder:     'All Folders',
+  filetype:   'All File Types'
 };
 
 function msToggle(key) {
@@ -590,7 +774,7 @@ function msRenderList(key, options) {
     return \`<div class="ms-option\${isSel ? ' selected' : ''}" onclick="msToggleOption('\${key}','\${o.id}',this)">
       <input type="checkbox" \${isSel ? 'checked' : ''} onclick="event.stopPropagation();msToggleOption('\${key}','\${o.id}',this.closest('.ms-option'))"/>
       <span class="ms-option-label">\${escHtml(o.label)}</span>
-      \${(key === 'trantype' || key === 'status') ? '' : \`<span class="ms-option-sub">#\${o.id}</span>\`}
+      \${(key === 'trantype' || key === 'status' || key === 'filetype') ? '' : \`<span class="ms-option-sub">#\${o.id}</span>\`}
     </div>\`;
   }).join('');
 }
@@ -635,7 +819,7 @@ function msUpdateTrigger(key) {
     const ph = document.createElement('span');
     ph.className = 'ms-placeholder';
     ph.id = \`ms-\${key}-placeholder\`;
-    ph.textContent = key === 'customer' ? 'All Customers' : key === 'trantype' ? 'All Transaction Types' : key === 'status' ? 'All Statuses' : 'All Subsidiaries';
+    ph.textContent = MS_PLACEHOLDERS[key] || 'All Items';
     trigger.insertBefore(ph, arrow);
     return;
   }
@@ -698,11 +882,17 @@ function msGetValues(key) {
   msSetOptions('customer',   __LOOKUPS__.customers    || []);
   msSetOptions('department', __LOOKUPS__.departments  || []);
   msSetOptions('subsidiary', __LOOKUPS__.subsidiaries || []);
+  msSetOptions('folder',     __LOOKUPS__.folders      || []);
+  msSetOptions('filetype',   FILE_TYPE_OPTIONS);
+
+  // Default Folder-mode "Date Created" range: last 90 days
+  document.getElementById('f-createdTo').value   = fmtDate(today);
+  document.getElementById('f-createdFrom').value = fmtDate(ago90);
 
   // Populate status multiselect with all status options by default
   updateStatusOptions();
 
-  // Auto-search on first page load
+  // Auto-search on first page load (Transactions mode is the default)
   doSearch();
 })();
 
@@ -736,6 +926,36 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// Escapes a string for safe use inside a single-quoted inline JS attribute, e.g. onclick="fn('...')"
+function escJsStr(s) {
+  var bs = String.fromCharCode(92); // backslash char, built this way to dodge nested template-escaping
+  return String(s).split(bs).join(bs + bs).split("'").join(bs + "'");
+}
+
+// Best-effort MIME type from a filename's extension — used for Folder-mode
+// previews/downloads where the file type is not always PDF.
+function guessMimeFromName(name) {
+  var ext = (String(name).split('.').pop() || '').toLowerCase();
+  var map = {
+    pdf: 'application/pdf', csv: 'text/csv', txt: 'text/plain',
+    htm: 'text/html', html: 'text/html', xml: 'application/xml',
+    json: 'application/json', zip: 'application/zip',
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+    bmp: 'image/bmp', tif: 'image/tiff', tiff: 'image/tiff',
+    doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  };
+  return map[ext] || 'application/octet-stream';
+}
+
+// 'documentsize' from N/search (file type) is returned by NetSuite in KB.
+function formatFileSize(kb) {
+  var n = parseFloat(kb) || 0;
+  if (n < 1024) return n.toFixed(0) + ' KB';
+  return (n / 1024).toFixed(1) + ' MB';
+}
+
 
 function setStats(total, success, failed) {
   document.getElementById('s-total').textContent   = total;
@@ -762,6 +982,11 @@ function setProgress(done, total, label) {
 }
 
 function buildFilename(inv) {
+  if (currentMode === 'folder') {
+    const prefix = (document.getElementById('f-prefix').value || '').replace(/[^a-zA-Z0-9_\\-]/g, '_');
+    const base   = inv.name || ('file_' + inv.id);
+    return prefix ? \`\${prefix}\${base}\` : base;
+  }
   const pat    = document.getElementById('f-filename').value;
   const prefix = (document.getElementById('f-prefix').value || '').replace(/[^a-zA-Z0-9_\\-]/g, '_');
   const tid    = (inv.tranId   || 'doc').replace(/[^a-zA-Z0-9_\\-]/g, '_');
@@ -822,7 +1047,8 @@ async function previewPDF(id, tranId) {
   if (!inv) return;
   try {
     const buffer = await downloadOnePDF(inv);
-    const blob   = new Blob([buffer], { type: 'application/pdf' });
+    const mime   = currentMode === 'folder' ? guessMimeFromName(inv.name) : 'application/pdf';
+    const blob   = new Blob([buffer], { type: mime });
     window.open(URL.createObjectURL(blob), '_blank');
   } catch (e) {
     showToast('Preview failed: ' + e.message, 'error');
@@ -836,11 +1062,12 @@ async function downloadSingle(id, tranId) {
   try {
     const buffer   = await downloadOnePDF(inv);
     const filename = buildFilename(inv);
+    const mime     = currentMode === 'folder' ? guessMimeFromName(filename) : 'application/pdf';
 
     if (dirHandle && dirHandle.getFileHandle) {
-      await writePDFToFolder(dirHandle, filename, buffer);
+      await writePDFToFolder(dirHandle, filename, buffer, mime);
     } else {
-      const blob = new Blob([buffer], { type: 'application/pdf' });
+      const blob = new Blob([buffer], { type: mime });
       const a    = document.createElement('a');
       a.href     = URL.createObjectURL(blob);
       a.download = filename;
@@ -859,23 +1086,24 @@ async function downloadSingle(id, tranId) {
    RENDER TABLE  (dispatches to row renderer)
 ───────────────────────────────────────── */
 function renderTable(list) {
-  const cfg   = PAGE_CONFIG[currentPage];
   const thead = document.getElementById('inv-thead');
 
-  // Detect if results contain multiple types
-  const typeKeys = new Set(list.map(item => item._typeKey).filter(Boolean));
-  const isMultiType = typeKeys.size > 1;
+  if (currentMode !== 'folder') {
+    // Detect if results contain multiple transaction types
+    const typeKeys = new Set(list.map(item => item._typeKey).filter(Boolean));
+    const isMultiType = typeKeys.size > 1;
 
-  // Use a unified header when mixing transaction types
-  if (isMultiType) {
-    thead.innerHTML = \`<tr>
-      <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
-      <th>Type</th><th></th><th>Tran ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
-      <th>Amount</th><th>Status</th><th>DL Status</th>
-    </tr>\`;
+    // Use a unified header when mixing transaction types
+    if (isMultiType) {
+      thead.innerHTML = \`<tr>
+        <th><input type="checkbox" id="cb-all" onchange="onSelectAll(this)"/></th>
+        <th>Type</th><th></th><th>Tran ID</th><th>Customer</th><th>Date</th><th>Due Date</th>
+        <th>Amount</th><th>Status</th><th>DL Status</th>
+      </tr>\`;
+    }
   }
 
-  // Re-attach cb-all after thead was rewritten by switchPage
+  // Re-attach cb-all after thead was rewritten by switchPage/switchMode
   const cbAll = document.getElementById('cb-all');
   if (cbAll) cbAll.onchange = function() { onSelectAll(this); };
 
@@ -887,13 +1115,12 @@ function renderTable(list) {
   allSelected = false;
   selectedIds.clear();
 
-  document.getElementById('table-meta').textContent = list.length + ' transactions';
+  document.getElementById('table-meta').textContent = list.length + (currentMode === 'folder' ? ' files' : ' transactions');
   renderTablePage();
 }
 
 /* ── Render only the current page slice ── */
 function renderTablePage() {
-  const cfg   = PAGE_CONFIG[currentPage];
   const tbody = document.getElementById('inv-tbody');
   tbody.innerHTML = '';
 
@@ -908,20 +1135,25 @@ function renderTablePage() {
   const endIdx   = Math.min(startIdx + perPage, total);
   const pageSlice = invoices.slice(startIdx, endIdx);
 
-  // Resolve renderer by string key
-  const renderers = {
-    renderInvoiceRow,
-    renderCreditMemoRow,
-    renderInvoiceGroupRow
-  };
-  const defaultRenderer = renderers[cfg.rowRendererKey];
+  if (currentMode === 'folder') {
+    pageSlice.forEach((item) => tbody.appendChild(renderFileRow(item)));
+  } else {
+    const cfg = PAGE_CONFIG[currentPage];
+    // Resolve renderer by string key
+    const renderers = {
+      renderInvoiceRow,
+      renderCreditMemoRow,
+      renderInvoiceGroupRow
+    };
+    const defaultRenderer = renderers[cfg.rowRendererKey];
 
-  pageSlice.forEach((item) => {
-    const itemCfg = item._typeKey ? PAGE_CONFIG[item._typeKey] : null;
-    const rowRenderer = (itemCfg ? renderers[itemCfg.rowRendererKey] : null) || defaultRenderer;
-    const tr = rowRenderer(item);
-    tbody.appendChild(tr);
-  });
+    pageSlice.forEach((item) => {
+      const itemCfg = item._typeKey ? PAGE_CONFIG[item._typeKey] : null;
+      const rowRenderer = (itemCfg ? renderers[itemCfg.rowRendererKey] : null) || defaultRenderer;
+      const tr = rowRenderer(item);
+      tbody.appendChild(tr);
+    });
+  }
 
   // Restore checkbox state for visible rows
   document.querySelectorAll('.row-cb').forEach(cb => {
@@ -1135,6 +1367,36 @@ function renderInvoiceGroupRow(inv) {
   return tr;
 }
 
+/* ── Folder-mode file row ── */
+function renderFileRow(item) {
+  const tr = document.createElement('tr');
+  tr.id = 'row-' + item.id;
+  const nameJs = escJsStr(item.name || '');
+  tr.innerHTML = \`
+    <td class="cb-wrap"><input type="checkbox" class="row-cb" data-id="\${item.id}" onchange="onRowCheck()"/></td>
+    <td><span class="tran-id">\${escHtml(item.name)}</span></td>
+    <td>\${escHtml(item.folder || '—')}</td>
+    <td><span class="type-label">\${escHtml(item.fileType || '—')}</span></td>
+    <td>\${escHtml(formatFileSize(item.size))}</td>
+    <td>\${escHtml(fmtDisplayDate(item.created) || '—')}</td>
+    <td>
+      <div class="row-actions">
+        <button type="button" class="icon-btn preview" title="Preview" onclick="previewPDF(\${item.id},'\${nameJs}')">
+          <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><ellipse cx="6" cy="6" rx="5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="6" r="1.5" fill="currentColor"/></svg>
+        </button>
+        <button type="button" class="icon-btn dl" title="Download" onclick="downloadSingle(\${item.id},'\${nameJs}')">
+          <svg width="12" height="12" fill="none" viewBox="0 0 12 12"><path d="M6 1v7M3.5 5.5L6 8l2.5-2.5M1 10h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="dl-status" style="min-width:72px">
+          <span class="status-dot dot-pending" id="row-dot-\${item.id}"></span>
+          <span id="row-lbl-\${item.id}" style="color:var(--text-muted);font-size:11.5px">Pending</span>
+        </div>
+      </div>
+    </td>
+  \`;
+  return tr;
+}
+
 /* ── Status badge helpers ── */
 function invStatusClass(code) {
   if (code === 'C') return 'bs-paid';
@@ -1228,8 +1490,20 @@ function toggleSelectAll() {
 function openModal() {
   if (invoices.length === 0) {return; }
   const sel = getSelectedInvoices();
-  document.getElementById('chip-count').textContent = sel.length + ' PDF' + (sel.length !== 1 ? 's' : '');
+  const unitLabel = currentMode === 'folder' ? ' File' : ' PDF';
+  document.getElementById('chip-count').textContent = sel.length + unitLabel + (sel.length !== 1 ? 's' : '');
   document.getElementById('chip-est').textContent = Math.round(sel.length * 85);
+  const fpGroup = document.getElementById('filename-pattern-group');
+  if (fpGroup) fpGroup.style.display = currentMode === 'folder' ? 'none' : '';
+  const fpPreview = document.getElementById('filename-preview');
+  if (fpPreview) fpPreview.style.display = currentMode === 'folder' ? 'none' : '';
+  document.getElementById('step1-sub').textContent = currentMode === 'folder'
+    ? 'Select where files will be saved on your machine'
+    : 'Select where PDFs will be saved on your machine';
+  document.getElementById('skiperr-label').textContent = currentMode === 'folder' ? 'Skip failed files' : 'Skip failed PDFs';
+  document.getElementById('skiperr-sub').textContent   = currentMode === 'folder'
+    ? 'Continue downloading even if one file fails'
+    : 'Continue downloading even if one invoice fails';
   goToStep(1);
   document.getElementById('modal-overlay').classList.add('show');
 }
@@ -1380,11 +1654,14 @@ async function runWithConcurrency(tasks, limit, onTaskDone) {
    DOWNLOAD ONE PDF  →  action=getPDF
 ───────────────────────────────────────── */
 async function downloadOnePDF(inv) {
-  const url = BASE_URL + '&action=getPDF&id=' + inv.id + '&tranid=' + encodeURIComponent(inv.tranId) + '&type=' + encodeURIComponent(inv._typeKey || currentPage);
+  const url = currentMode === 'folder'
+    ? BASE_URL + '&action=getFile&id=' + inv.id
+    : BASE_URL + '&action=getPDF&id=' + inv.id + '&tranid=' + encodeURIComponent(inv.tranId) + '&type=' + encodeURIComponent(inv._typeKey || currentPage);
   const resp = await fetch(url, { signal: abortCtrl ? abortCtrl.signal : undefined });
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   const ct = resp.headers.get('Content-Type') || '';
-  if (!ct.includes('pdf') && !ct.includes('octet')) {
+  if (ct.includes('json')) {
+    // A JSON body here means the server returned an error payload instead of the file.
     const txt = await resp.text();
     try { const obj = JSON.parse(txt); throw new Error(obj.error || txt); }
     catch (_) { throw new Error(txt.slice(0, 120)); }
@@ -1396,10 +1673,11 @@ async function downloadOnePDF(inv) {
    WRITE FILE  →  File System Access API
    handle can be the root dir OR a date subfolder handle
 ───────────────────────────────────────── */
-async function writePDFToFolder(handle, filename, buffer) {
+async function writePDFToFolder(handle, filename, buffer, mime) {
+  mime = mime || 'application/pdf';
   if (!handle || !handle.getFileHandle) {
     // Fallback: trigger browser download if FS API handle is not available
-    const blob = new Blob([buffer], { type: 'application/pdf' });
+    const blob = new Blob([buffer], { type: mime });
     const a    = document.createElement('a');
     a.href     = URL.createObjectURL(blob);
     a.download = filename;
@@ -1543,11 +1821,12 @@ async function startDownload() {
   setStats(total, 0, 0);
 
   // Update step 2 UI
+  const unitWord = currentMode === 'folder' ? 'File' : 'PDF';
   document.getElementById('dest-path-display').textContent = writeDirName;
-  document.getElementById('step2-sub').textContent = \`Saving \${total} PDF\${total!==1?'s':''} — concurrency: \${concur}\`;
+  document.getElementById('step2-sub').textContent = \`Saving \${total} \${unitWord}\${total!==1?'s':''} — concurrency: \${concur}\`;
   document.getElementById('concur-val').textContent = concur;
   document.getElementById('skiperr-disp').textContent = skipErr ? 'On' : 'Off';
-  document.getElementById('dl-hero-sub').textContent  = \`\${total} invoice\${total!==1?'s':''} · concurrency \${concur}\`;
+  document.getElementById('dl-hero-sub').textContent  = \`\${total} \${unitWord.toLowerCase()}\${total!==1?'s':''} · concurrency \${concur}\`;
   setProgress(0, total, 'Starting…');
 
   // Go to step 2
@@ -1580,7 +1859,8 @@ async function startDownload() {
       document.getElementById('dm-speed').textContent  = kbps + ' KB/s';
       document.getElementById('speed-disp').textContent = kbps + ' KB/s';
 
-      await writePDFToFolder(writeHandle, filename, buffer);
+      const mime = currentMode === 'folder' ? guessMimeFromName(filename) : 'application/pdf';
+      await writePDFToFolder(writeHandle, filename, buffer, mime);
 
       setRowStatus(inv.id, 'ok');
       return { inv, ok: true, filename, kb };
@@ -1592,6 +1872,8 @@ async function startDownload() {
     }
   });
 
+  const itemLabel = (inv) => (currentMode === 'folder' ? inv.name : inv.tranId) || ('#' + inv.id);
+
   await runWithConcurrency(tasks, concur, (result) => {
     if (result.cancelled) return;
     done.n++;
@@ -1600,11 +1882,11 @@ async function startDownload() {
       successCount++;
     } else {
       failedCount++;
-      failedItems.push({ tranId: result.inv.tranId, reason: result.error || 'Unknown error' });
+      failedItems.push({ tranId: itemLabel(result.inv), reason: result.error || 'Unknown error' });
     }
 
     setStats(total, successCount, failedCount);
-    setProgress(done.n, total, result.ok ? result.filename : ('FAILED: ' + result.inv.tranId));
+    setProgress(done.n, total, result.ok ? result.filename : ('FAILED: ' + itemLabel(result.inv)));
   });
 
   downloading = false;
@@ -1618,16 +1900,16 @@ async function startDownload() {
     document.getElementById('done-icon').textContent  = hasErrors ? '⚠️' : '✅';
     document.getElementById('done-title').innerHTML   = hasErrors
       ? \`Download <em style="color:var(--amber)">Finished</em>\`
-      : \`PDFs <em>Saved</em>\`;
+      : \`\${unitWord}s <em>Saved</em>\`;
     document.getElementById('done-sub').textContent   = hasErrors
       ? \`\${successCount} succeeded, \${failedCount} failed\`
-      : \`All \${successCount} invoice\${successCount!==1?'s':''} saved successfully in \${elapsed}s\`;
+      : \`All \${successCount} \${unitWord.toLowerCase()}\${successCount!==1?'s':''} saved successfully in \${elapsed}s\`;
     document.getElementById('done-success').textContent = successCount;
     document.getElementById('done-failed').textContent  = failedCount;
     document.getElementById('done-time').textContent    = elapsed + 's';
     document.getElementById('done-path').textContent    = writeDirName;
     document.getElementById('done-path-card').style.display = 'flex';
-    document.getElementById('step3-sub').textContent = \`\${successCount} PDF\${successCount!==1?'s':''} saved to \${writeDirName}\`;
+    document.getElementById('step3-sub').textContent = \`\${successCount} \${unitWord}\${successCount!==1?'s':''} saved to \${writeDirName}\`;
 
     // Show failed items with reasons
     var errList = document.getElementById('done-error-list');

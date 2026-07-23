@@ -13,8 +13,10 @@
  *  action=getInvoices   → SuiteQL invoice search → JSON    [pdc_mod_invoices]
  *  action=getCreditMemos→ SuiteQL credit memo search→JSON  [pdc_mod_creditMemos]
  *  action=getInvoiceGroups → N/search invoice group search → JSON [pdc_mod_invoiceGroups]
- *  action=getLookups    → Subsidiary + customer lists→JSON  [pdc_mod_lookups]
+ *  action=getLookups    → Subsidiary + customer + folder lists→JSON [pdc_mod_lookups]
  *  action=getPDF        → Render one transaction PDF        [pdc_mod_pdfRenderer]
+ *  action=getFiles      → N/search File Cabinet file search → JSON [pdc_mod_files]
+ *  action=getFile       → Stream one File Cabinet file       [pdc_mod_fileDownloader]
  *
  *  MODULE LAYOUT
  *  ─────────────
@@ -23,8 +25,10 @@
  *  pdc_mod_invoices.js         ← getInvoices action
  *  pdc_mod_creditMemos.js      ← getCreditMemos action
  *  pdc_mod_invoiceGroups.js    ← getInvoiceGroups action
- *  pdc_mod_lookups.js          ← getLookups action + fetchCustomers/fetchSubsidiaries
+ *  pdc_mod_lookups.js          ← getLookups action + fetchCustomers/fetchSubsidiaries/fetchFolders
  *  pdc_mod_pdfRenderer.js      ← getPDF action (render.transaction / invoicegroup)
+ *  pdc_mod_files.js            ← getFiles action (File Cabinet file search, Folder mode)
+ *  pdc_mod_fileDownloader.js   ← getFile action (stream one File Cabinet file)
  *  pdc_mod_htmlBuilder.js      ← page action — assembles full HTML from templates
  *  pdc_tpl_styles.js           ← CSS template (design tokens, layout, components)
  *  pdc_tpl_markup.js           ← HTML body template (sidebar, filters, table, modal)
@@ -54,9 +58,11 @@ define(
     '../LIB/pdc_mod_invoiceGroups',
     '../LIB/pdc_mod_lookups',
     '../LIB/pdc_mod_pdfRenderer',
+    '../LIB/pdc_mod_files',
+    '../LIB/pdc_mod_fileDownloader',
     '../LIB/pdc_mod_htmlBuilder'
   ],
-  (runtime, log, serverWidget, invoices, creditMemos, invoiceGroups, lookups, pdfRenderer, htmlBuilder) => {
+  (runtime, log, serverWidget, invoices, creditMemos, invoiceGroups, lookups, pdfRenderer, files, fileDownloader, htmlBuilder) => {
 
   // ─── ACTION ROUTER ────────────────────────────────────────────────────────────
 
@@ -69,7 +75,9 @@ define(
     getCreditMemos:   creditMemos.serve,
     getInvoiceGroups: invoiceGroups.serve,
     getLookups:       lookups.serve,
-    getPDF:           pdfRenderer.serve
+    getPDF:           pdfRenderer.serve,
+    getFiles:         files.serve,
+    getFile:          fileDownloader.serve
   };
 
   // ─── ENTRY POINT ──────────────────────────────────────────────────────────────
@@ -114,6 +122,7 @@ define(
     const subsidiaries = lookups.fetchSubsidiaries();
     const customers    = lookups.fetchCustomers();
     const departments  = lookups.fetchDepartments();
+    const folders      = lookups.fetchFolders();
 
     const form = serverWidget.createForm({ title: 'Print & Download Center', hideNavBar: false });
 
@@ -123,7 +132,7 @@ define(
       label: 'Content'
     });
 
-    htmlField.defaultValue = htmlBuilder.buildHTML(baseUrl, customers, subsidiaries, departments);
+    htmlField.defaultValue = htmlBuilder.buildHTML(baseUrl, customers, subsidiaries, departments, folders);
 
     response.writePage(form);
   };

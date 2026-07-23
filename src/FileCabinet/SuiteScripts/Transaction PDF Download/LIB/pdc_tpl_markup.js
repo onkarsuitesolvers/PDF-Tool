@@ -17,8 +17,20 @@ define([], () => {
 ════════════════════════════════════════ -->
 <main class="main">
 
-  <!-- Filter bar -->
-  <div class="filter-bar">
+  <!-- Mode toggle: Transactions vs Folder -->
+  <div class="mode-tabs">
+    <button type="button" class="mode-tab active" id="mode-tab-transactions" onclick="switchMode('transactions')">
+      <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><path d="M2 2h7l3 3v7a1 1 0 01-1 1H2a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.3"/><path d="M5 8h4M5 10h2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      Transactions
+    </button>
+    <button type="button" class="mode-tab" id="mode-tab-folder" onclick="switchMode('folder')">
+      <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><path d="M1.5 3.5h4L7 5h5.5v6h-11z" stroke="currentColor" stroke-width="1.3"/></svg>
+      Folder
+    </button>
+  </div>
+
+  <!-- Filter bar: Transactions mode -->
+  <div class="filter-bar" id="filter-bar-transactions">
     <div class="filter-group" id="fg-trantype">
       <div class="filter-label">Transaction Type</div>
       <div class="ms-wrap" id="ms-trantype-wrap">
@@ -166,14 +178,80 @@ define([], () => {
       </div>
     </div>
     <div class="filter-divider"></div>
-    <button type="button" class="btn btn-primary" onclick="doSearch()" id="btn-search" style="align-self:flex-end">
+    <button type="button" class="btn btn-primary" onclick="runSearch()" id="btn-search" style="align-self:flex-end">
       <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M10 10l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
       <span id="btn-search-label">Search Transactions</span>
     </button>
   </div>
 
-  <!-- CSV Upload Section -->
-  <div class="csv-upload-bar">
+  <!-- Filter bar: Folder mode -->
+  <div class="filter-bar" id="filter-bar-folder" style="display:none">
+    <div class="filter-group" id="fg-folder">
+      <div class="filter-label">Folders</div>
+      <div class="ms-wrap" id="ms-folder-wrap">
+        <div class="ms-trigger" id="ms-folder-trigger" onclick="msToggle('folder')">
+          <span class="ms-placeholder" id="ms-folder-placeholder">All Folders</span>
+          <svg class="ms-arrow" width="10" height="7" fill="none" viewBox="0 0 10 7"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </div>
+        <div class="ms-dropdown" id="ms-folder-dropdown" style="display:none;visibility:hidden">
+          <div class="ms-search-wrap">
+            <div class="ms-search-box">
+              <svg class="ms-search-icon" width="13" height="13" fill="none" viewBox="0 0 13 13"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M10 10l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <input class="ms-search" id="ms-folder-search" placeholder="Search folders…" oninput="msFilter('folder')" onclick="event.stopPropagation()"/>
+            </div>
+          </div>
+          <div class="ms-list" id="ms-folder-list">
+            <div class="ms-loading">
+              <svg width="14" height="14" fill="none" viewBox="0 0 14 14" style="animation:spin 1s linear infinite"><circle cx="7" cy="7" r="5.5" stroke="var(--border)" stroke-width="1.5"/><path d="M7 1.5A5.5 5.5 0 0112.5 7" stroke="var(--teal-bright)" stroke-width="1.5" stroke-linecap="round"/></svg>
+              Loading…
+            </div>
+          </div>
+          <div class="ms-footer">
+            <span class="ms-footer-count" id="ms-folder-count">0 selected</span>
+            <span class="ms-footer-clear" onclick="msClear('folder')">Clear all</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="filter-group" id="fg-filetype">
+      <div class="filter-label">File Type</div>
+      <div class="ms-wrap" id="ms-filetype-wrap">
+        <div class="ms-trigger" id="ms-filetype-trigger" onclick="msToggle('filetype')">
+          <span class="ms-placeholder" id="ms-filetype-placeholder">All File Types</span>
+          <svg class="ms-arrow" width="10" height="7" fill="none" viewBox="0 0 10 7"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </div>
+        <div class="ms-dropdown" id="ms-filetype-dropdown" style="display:none;visibility:hidden">
+          <div class="ms-search-wrap">
+            <div class="ms-search-box">
+              <svg class="ms-search-icon" width="13" height="13" fill="none" viewBox="0 0 13 13"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M10 10l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <input class="ms-search" id="ms-filetype-search" placeholder="Search file types…" oninput="msFilter('filetype')" onclick="event.stopPropagation()"/>
+            </div>
+          </div>
+          <div class="ms-list" id="ms-filetype-list"></div>
+          <div class="ms-footer">
+            <span class="ms-footer-count" id="ms-filetype-count">0 selected</span>
+            <span class="ms-footer-clear" onclick="msClear('filetype')">Clear all</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Date Created From</div>
+      <input class="filter-input" type="text" id="f-createdFrom" placeholder="MM/DD/YYYY" maxlength="10"/>
+    </div>
+    <div class="filter-group">
+      <div class="filter-label">Date Created To</div>
+      <input class="filter-input" type="text" id="f-createdTo" placeholder="MM/DD/YYYY" maxlength="10"/>
+    </div>
+    <div class="filter-divider"></div>
+    <button type="button" class="btn btn-primary" onclick="runSearch()" id="btn-search-folder" style="align-self:flex-end">
+      <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M10 10l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span id="btn-search-folder-label">Search Files</span>
+    </button>
+  </div>
+
+  <!-- CSV Upload Section (Transactions mode only) -->
+  <div class="csv-upload-bar" id="csv-upload-bar">
     <div class="csv-left">
       <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><path d="M2 2h7l3 3v7a1 1 0 01-1 1H2a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.3"/><path d="M5 8h4M5 10h2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
       <span class="csv-label">Or search by CSV</span>
@@ -246,7 +324,7 @@ define([], () => {
     </div>
     <div class="table-scroll">
       <table>
-        <colgroup>
+        <colgroup id="inv-colgroup">
           <col style="width:3%">
           <col style="width:9%">
           <col style="width:3%">
@@ -375,7 +453,7 @@ define([], () => {
         <div>
           <div class="sec-label">Download Settings</div>
           <div class="settings-grid">
-            <div class="field-g">
+            <div class="field-g" id="filename-pattern-group">
               <label>Filename Pattern</label>
               <select class="field-select" id="f-filename" onchange="updatePreview()">
                 <option value="tranid">{TranID}.pdf</option>
@@ -410,8 +488,8 @@ define([], () => {
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px 14px;">
             <div class="toggle-row">
               <div>
-                <div class="tl-label">Skip failed PDFs</div>
-                <div class="tl-sub">Continue downloading even if one invoice fails</div>
+                <div class="tl-label" id="skiperr-label">Skip failed PDFs</div>
+                <div class="tl-sub" id="skiperr-sub">Continue downloading even if one invoice fails</div>
               </div>
               <input type="checkbox" id="f-skiperr" checked style="width:15px;height:15px;accent-color:var(--teal-mid);cursor:pointer"/>
             </div>
