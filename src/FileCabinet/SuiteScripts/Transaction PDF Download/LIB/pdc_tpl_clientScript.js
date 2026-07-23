@@ -22,14 +22,28 @@ define([], () => {
    Fetched via action=getLookups rather than embedded server-side: the
    folder list grows with the account's File Cabinet and NetSuite's
    LONGTEXT field type caps out at 100,000 characters, which large
-   accounts can exceed. */
+   accounts can exceed. Cached in sessionStorage so re-visiting this page
+   in the same tab (a full reload, since this is a Suitelet) reuses the
+   already-fetched tree instead of hitting the server again; only a
+   closed/new tab or an explicit refresh clears it.
+   Folder tree here should not be re-fetched from JS in general once
+   rendered — this fetch runs a single time in init(). */
+const FOLDER_CACHE_KEY = 'pdc_folder_lookups_cache';
+
 async function fetchFolderLookups() {
+  try {
+    const cached = sessionStorage.getItem(FOLDER_CACHE_KEY);
+    if (cached) return JSON.parse(cached);
+  } catch (e) { /* sessionStorage unavailable or corrupt — fall through to fetch */ }
+
   try {
     const resp = await fetch('${baseUrl}&action=getLookups');
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
     if (!data.success) throw new Error(data.error || 'Unknown error');
-    return data.folders || [];
+    const folders = data.folders || [];
+    try { sessionStorage.setItem(FOLDER_CACHE_KEY, JSON.stringify(folders)); } catch (e) { /* quota exceeded — skip caching */ }
+    return folders;
   } catch (e) {
     console.error('[PDC] fetchFolderLookups failed:', e);
     return [];
