@@ -293,6 +293,7 @@ function updateFolderSelectedSummary() {
    page-by-page with live progress & exact counts.
 ───────────────────────────────────────── */
 const FILE_SEARCH_PAGE_SIZE = 1000; // matches server PAGE_SIZE in pdc_mod_files.js
+const SEARCH_PAGE_CONCURRENCY = 4;  // parallel page fetches once total is known
 
 function showSearchProgress() {
   hideSearchProgress();
@@ -361,34 +362,62 @@ async function runSearch() {
       createdTo:   toISODate(document.getElementById('f-createdTo').value)
     };
 
-    var allFiles    = [];
-    var rowBegin    = 1;
-    var grandTotal  = 0;
-    var moreRecords = true;
+    // Fetch page 1 first — it also reports totalCount, which tells us how
+    // many more pages exist. Those remaining pages are independent server
+    // requests (each re-runs the search and reads just its own row range),
+    // so they can be fetched in parallel instead of one-at-a-time.
+    var firstParams = new URLSearchParams(Object.assign({}, baseParams, {
+      rowBegin: 1,
+      rowEnd:   FILE_SEARCH_PAGE_SIZE
+    }));
+    var firstResp = await fetch(BASE_URL + '&' + firstParams.toString());
+    if (!firstResp.ok) throw new Error('HTTP ' + firstResp.status);
+    var firstData = await firstResp.json();
+    if (!firstData.success) throw new Error(firstData.error || 'Unknown error');
 
-    while (moreRecords) {
-      var rowEnd = rowBegin + FILE_SEARCH_PAGE_SIZE - 1;
-      var params = new URLSearchParams(Object.assign({}, baseParams, {
-        rowBegin: rowBegin,
-        rowEnd:   rowEnd
-      }));
+    var firstItems  = firstData.files || [];
+    var grandTotal  = firstData.totalCount != null ? firstData.totalCount : firstItems.length;
+    var totalPages  = Math.max(1, Math.ceil(grandTotal / FILE_SEARCH_PAGE_SIZE));
+    var pageResults = new Array(totalPages);
+    pageResults[0]  = firstItems;
 
-      var resp = await fetch(BASE_URL + '&' + params.toString());
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      var data = await resp.json();
-      if (!data.success) throw new Error(data.error || 'Unknown error');
+    var fetchedCount = firstItems.length;
+    updateSearchProgress(fetchedCount, grandTotal, 'Files');
 
-      if (rowBegin === 1 && data.totalCount != null) grandTotal = data.totalCount;
+    if (totalPages > 1) {
+      var firstError = null;
 
-      var items = data.files || [];
-      allFiles = allFiles.concat(items);
-      updateSearchProgress(allFiles.length, grandTotal, 'Files');
+      var pageTasks = [];
+      for (var pi = 1; pi < totalPages; pi++) {
+        pageTasks.push((function (pageIndex) {
+          return async function () {
+            var rowBegin = pageIndex * FILE_SEARCH_PAGE_SIZE + 1;
+            var rowEnd   = rowBegin + FILE_SEARCH_PAGE_SIZE - 1;
+            var params = new URLSearchParams(Object.assign({}, baseParams, {
+              rowBegin: rowBegin,
+              rowEnd:   rowEnd
+            }));
+            try {
+              var resp = await fetch(BASE_URL + '&' + params.toString());
+              if (!resp.ok) throw new Error('HTTP ' + resp.status);
+              var data = await resp.json();
+              if (!data.success) throw new Error(data.error || 'Unknown error');
+              pageResults[pageIndex] = data.files || [];
+              fetchedCount += pageResults[pageIndex].length;
+              updateSearchProgress(fetchedCount, grandTotal, 'Files');
+            } catch (e) {
+              if (!firstError) firstError = e;
+            }
+          };
+        })(pi));
+      }
 
-      if (items.length < FILE_SEARCH_PAGE_SIZE) moreRecords = false;
-      else rowBegin += FILE_SEARCH_PAGE_SIZE;
+      await runWithConcurrency(pageTasks, SEARCH_PAGE_CONCURRENCY, function () {});
+
+      if (firstError) throw firstError;
     }
 
-    files = allFiles;
+    files = [].concat.apply([], pageResults);
     renderTable(files);
     setStats(files.length, 0, 0);
 
@@ -769,7 +798,9 @@ function renderTablePage() {
   const endIdx   = Math.min(startIdx + perPage, total);
   const pageSlice = files.slice(startIdx, endIdx);
 
-  pageSlice.forEach((item) => tbody.appendChild(renderFileRow(item)));
+  const frag = document.createDocumentFragment();
+  pageSlice.forEach((item) => frag.appendChild(renderFileRow(item)));
+  tbody.appendChild(frag);
 
   document.querySelectorAll('.row-cb').forEach(cb => {
     const id = cb.dataset.id;
