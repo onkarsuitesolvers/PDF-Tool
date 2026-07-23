@@ -329,11 +329,8 @@ function hideSearchProgress() {
 }
 
 async function runSearch() {
+  // No folder selected → search across all folders instead of blocking.
   var folderIds = getSelectedFolderIds();
-  if (folderIds.length === 0) {
-    showToast('Please select at least one folder in the tree before searching', 'warning');
-    return;
-  }
 
   var btn      = document.getElementById('btn-search');
   var labelEl  = document.getElementById('btn-search-label');
