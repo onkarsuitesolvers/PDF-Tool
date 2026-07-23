@@ -88,6 +88,13 @@ define(
 
   // ─── PAGE HANDLER ─────────────────────────────────────────────────────────────
 
+  // Folder lookup data is large and grows with the account's File Cabinet,
+  // so it's kept out of the INLINEHTML field's value: that field also carries
+  // the full page shell (styles/markup/script), and NetSuite rejects any
+  // single field value over 512 KB. Storing the folder JSON in its own
+  // hidden field keeps each field's value comfortably under that cap.
+  const FOLDER_DATA_FIELD_ID = 'custpage_pdc_folder_data';
+
   /**
    * Serve the full HTML page.
    * Lookup data is fetched server-side so the page ships with data ready —
@@ -102,13 +109,21 @@ define(
 
     const form = serverWidget.createForm({ title: 'Print & Download Center', hideNavBar: false });
 
+    const folderDataField = form.addField({
+      id:    FOLDER_DATA_FIELD_ID,
+      type:  serverWidget.FieldType.LONGTEXT,
+      label: 'Folder Data'
+    });
+    folderDataField.defaultValue = JSON.stringify(folders);
+    folderDataField.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+
     const htmlField = form.addField({
       id:    'custpage_html_content',
       type:  serverWidget.FieldType.INLINEHTML,
       label: 'Content'
     });
 
-    htmlField.defaultValue = htmlBuilder.buildHTML(baseUrl, folders);
+    htmlField.defaultValue = htmlBuilder.buildHTML(baseUrl, FOLDER_DATA_FIELD_ID);
 
     response.writePage(form);
   };

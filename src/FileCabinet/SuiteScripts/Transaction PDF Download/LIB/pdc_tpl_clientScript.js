@@ -7,19 +7,31 @@
  * explicit search action, table/pagination, modal, download orchestrator,
  * File System Access API, concurrency limiter, row renderer, etc.
  *
- * Server-injected values: baseUrl, folders
+ * Server-injected values: baseUrl, folderDataFieldId
  */
 define([], () => {
 
   /**
-   * @param {string} baseUrl    Suitelet base URL
-   * @param {Object[]} folders  Flat File Cabinet folder list [{ id, name, parentId }, …]
+   * @param {string} baseUrl           Suitelet base URL
+   * @param {string} folderDataFieldId ID of the hidden form field holding the
+   *                                   folder lookup JSON (see pdc_SL_main.js)
    * @returns {string} Complete <script> block content
    */
-  const getScript = (baseUrl, folders) => `
-/* ── Server-side lookup data (embedded at render time) ── */
+  const getScript = (baseUrl, folderDataFieldId) => `
+/* ── Server-side lookup data ──
+   Read from a hidden form field rather than embedded directly in this
+   script: the folder list grows with the account's File Cabinet and
+   NetSuite caps any single field's value at 512 KB, so it's kept out of
+   this (already large) page-shell string and stored in its own field. */
 const __LOOKUPS__ = {
-  folders: ${JSON.stringify(folders)}
+  folders: (function () {
+    try {
+      var el = document.getElementById('${folderDataFieldId}');
+      return el ? (JSON.parse(el.value || '[]')) : [];
+    } catch (e) {
+      return [];
+    }
+  })()
 };
 
 'use strict';
