@@ -21,14 +21,11 @@ define(
   /**
    * Build the complete HTML page string for the Print & Download Center.
    *
-   * @param {string} baseUrl           Suitelet base URL (for client-side fetch calls)
-   * @param {string} folderDataFieldId ID of the hidden form field holding the
-   *                                   folder lookup JSON (kept off this string
-   *                                   so this field's own value stays small —
-   *                                   see pdc_SL_main.js FOLDER_DATA_FIELD_ID)
+   * @param {string} baseUrl  Suitelet base URL (for client-side fetch calls,
+   *                          including the action=getLookups folder data fetch)
    * @returns {string}  Full HTML document
    */
-  const buildHTML = (baseUrl, folderDataFieldId) => {
+  const buildHTML = (baseUrl) => {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -44,7 +41,7 @@ ${styles.getStyles()}
 ${markup.getMarkup()}
 
 <script>
-${clientScript.getScript(baseUrl, folderDataFieldId)}
+${clientScript.getScript(baseUrl)}
 </script>
 
 </body>
