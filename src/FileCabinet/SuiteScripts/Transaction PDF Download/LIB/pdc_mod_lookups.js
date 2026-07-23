@@ -9,19 +9,23 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 define(
-  ['N/search', 'N/log', './pdc_mod_queryHelper'],
-  (search, log, qh) => {
+  ['N/search', 'N/log', 'N/cache', './pdc_mod_queryHelper'],
+  (search, log, cache, qh) => {
+
+  // Folder structure rarely changes, but every page load/click was re-running
+  // a full-account folder search from scratch (each Suitelet request is a
+  // fresh execution, so nothing persists in memory between them). Cache the
+  // result so the search runs once per TTL window instead of on every hit.
+  const CACHE_KEY = 'folders';
+  const CACHE_TTL = 3600; // seconds
+
+  const folderCache = cache.getCache({ name: 'pdc_folder_lookup', scope: cache.Scope.PROTECTED });
 
   /**
-   * Fetch all File Cabinet folders as a flat list with parent pointers.
-   * The client rebuilds the hierarchy into a tree (rather than the server
-   * flattening it into breadcrumb strings) so the UI can render an
-   * expandable/collapsible folder tree with multi-select.
-   * Uses N/search (folder record type) rather than SuiteQL since folder
-   * hierarchy is not reliably exposed as a SuiteQL table.
+   * Run the actual folder search. Used as the cache loader.
    * @returns {{ id: number, name: string, parentId: number|null }[]}
    */
-  const fetchFolders = () => {
+  const searchFolders = () => {
     const folders = [];
     try {
       const folderSearch = search.create({
@@ -45,10 +49,27 @@ define(
       });
     } catch (e) {
       log.error({ title: 'lookups:folders', details: e.message });
-      return [];
     }
 
     return folders;
+  };
+
+  /**
+   * Fetch all File Cabinet folders as a flat list with parent pointers.
+   * The client rebuilds the hierarchy into a tree (rather than the server
+   * flattening it into breadcrumb strings) so the UI can render an
+   * expandable/collapsible folder tree with multi-select.
+   * Uses N/search (folder record type) rather than SuiteQL since folder
+   * hierarchy is not reliably exposed as a SuiteQL table.
+   * Served from N/cache after the first run within the TTL window.
+   * @returns {{ id: number, name: string, parentId: number|null }[]}
+   */
+  const fetchFolders = () => {
+    return folderCache.get({
+      key:    CACHE_KEY,
+      loader: searchFolders,
+      ttl:    CACHE_TTL
+    }) || [];
   };
 
   /**

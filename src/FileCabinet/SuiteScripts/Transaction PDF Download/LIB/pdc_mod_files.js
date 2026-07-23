@@ -30,7 +30,7 @@ define(
   const buildFilters = (p) => {
     const filters = [];
 
-    // Folder — required in practice (client enforces at least one selection)
+    // Folder — optional; no selection means search across all folders.
     const folderIds = qh.parseIdList(p.folder);
     if (folderIds.length) {
       if (filters.length) filters.push('AND');
@@ -94,12 +94,7 @@ define(
     const p = request.parameters;
     log.debug({ title: 'PDC files.serve', details: 'folder=' + (p.folder || '') + ' | fileType=' + (p.fileType || '') + ' | createdFrom=' + (p.createdFrom || '') + ' | createdTo=' + (p.createdTo || '') });
 
-    const folderIds = qh.parseIdList(p.folder);
-    if (folderIds.length === 0) {
-      qh.writeJsonResponse(response, { success: true, count: 0, files: [] });
-      return;
-    }
-
+    // No folder selected → search across all folders instead of restricting.
     const filters = buildFilters(p);
     log.debug({ title: 'PDC files.serve filters', details: JSON.stringify(filters) });
 
